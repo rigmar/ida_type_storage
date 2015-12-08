@@ -353,7 +353,7 @@ class ConnectToBase(Form):
         <#Hint1#Server IP:{iServerIP}> : <#Hint1#Server port:{iPort}>
         """, {
             'iServerIP':Form.StringInput(),
-            'iPort':Form.NumericInput(Form.FT_INT64,0),
+            'iPort':Form.NumericInput(Form.FT_DEC,27017),
         })
 
     def Go(self):
@@ -516,7 +516,7 @@ class IdaTypeStringParser:
     def add_menu_items(self):
         if self.add_menu_item_helper("File/Take database snapshot...", "Import types from storage", "Shift+i", 0, self.goImportTypes, None): return 1
 
-        if self.add_menu_item_helper("File/Take database snapshot...", "Export types from storage", "Shift+g", 0, self.doExportTypes, None): return 1
+        if self.add_menu_item_helper("File/Take database snapshot...", "Export types to storage", "Shift+g", 0, self.doExportTypes, None): return 1
         # if self.add_menu_item_helper("Search/all error operands", "ROP gadgets...", "Alt+r", 1, self.show_rop_view, None): return 1
         #
         # if self.add_menu_item_helper("Edit/Begin selection", "Create pattern...", "Shift+c", 0, self.show_pattern_create, None): return 1
@@ -548,8 +548,9 @@ class IdaTypeStringParser:
             self.ConnectToStorage()
         toStorage = []
         self.Initialise()
-        for t in self.LocalTypeMap.values():
-            toStorage.append(t)
+        sel_list = self.ChooseLocalTypes()
+        for name in sel_list:
+            toStorage.append(self.LocalTypeMap[name])
         self.saveToStorage(toStorage)
 
 
