@@ -93,11 +93,7 @@ def convert_to_string(src):
     return ret
 
 
-form_text = """%s
 
-<Types for choose:{cEChooser}>
-<##Get all types:{iButtonSyncAll}>
-"""
 class TypeListChooser(Choose2):
     """
     A simple chooser to be used as an embedded chooser
@@ -226,7 +222,11 @@ class TypeListChooser2(Choose2):
     #     #print sel_list
 
 
+form_text = """%s
 
+<Types for choose:{cEChooser}>
+<##Get all types:{iButtonSyncAll}><Resolve type dependencies:{rResDep}>{cGroup1}>
+"""
 class TypeChooseForm(Form):
     def __init__(self,title_str,type_list):
 
@@ -234,20 +234,23 @@ class TypeChooseForm(Form):
         Form.__init__(self,form_text%title_str, {
                                              'cEChooser' : Form.EmbeddedChooserControl(self.EChooser),
                                              'iButtonSyncAll': Form.ButtonInput(self.onSyncAllTypes),
+                                             'cGroup1': Form.ChkGroupControl(("rResDep",))
                                              })
+
 
 
 
 
     def Go(self):
         self.Compile()
+        self.rResDep.checked = True
         ok = self.Execute()
         print "Ok = %d"%ok
         if ok == 1:
             sel = self.EChooser.selected
             #print sel
             #print len(sel)
-            return sel
+            return sel, self.rResDep.checked
 
     def onSyncAllTypes(self,code=0):
         self.EChooser.selected = []
@@ -334,6 +337,10 @@ Choose project for connect
             #print len(sel)
             return sel[0]
 
+    def OnFormChange(self, fid):
+        if fid == -1:
+            self.SetFocusedField(self.EChooser)
+
     def onNewProject(self,code = 0):
         s = idc.AskStr("", "Enter new project name:")
         self.EChooser.selected = [s]
@@ -352,7 +359,7 @@ class ConnectToBase(Form):
 
         <#Hint1#Server IP:{iServerIP}> : <#Hint1#Server port:{iPort}>
         """, {
-            'iServerIP':Form.StringInput(),
+            'iServerIP':Form.StringInput(value = "127.0.0.1"),
             'iPort':Form.NumericInput(Form.FT_DEC,27017),
         })
 
@@ -479,6 +486,7 @@ class IdaTypeStringParser:
         self.addmenu_item_ctxs = []
         self.typesNamesInStorage = []
         self.cachedStorage = {}
+        self.fResDep = True
 
     def ConnectToStorage(self):
         #try:
@@ -489,15 +497,21 @@ class IdaTypeStringParser:
         if r != None:
             serverIP, port = r
             port = int(port)
-            client_try = MongoClient(serverIP,port)
-            db = client_try['LocalTypesStorage']
-            coll_names = db.collection_names(include_system_collections = False)
-            client_try.close()
-            f = ChooseProject(coll_names)
-            r1 = f.Go()
-            f.Free()
-            #print r1
-            self.storage = Storage(serverIP,port,r1)
+            try:
+                client_try = MongoClient(serverIP,port)
+                db = client_try['LocalTypesStorage']
+                coll_names = db.collection_names(include_system_collections = False)
+                client_try.close()
+                f = ChooseProject(coll_names)
+                r1 = f.Go()
+                f.Free()
+                #print r1
+                if r1 is not None:
+                    self.storage = Storage(serverIP,port,r1)
+                    return True
+            except:
+                Warning("Could not connect to the storage")
+        return False
         #     else:
         #         raise
         # except:
@@ -530,28 +544,39 @@ class IdaTypeStringParser:
             idaapi.del_menu_item(addmenu_item_ctx)
 
     def goImportTypes(self):
-        pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=True)
+        self.fResDep = True
+        pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
-            self.ConnectToStorage()
+            if  not self.ConnectToStorage():
+                return
 
         sel_list = self.ChooseTypesFromStorage()
-        fromStorage = self.getFromStorage(sel_list)
-        sorted_list = self.resolveDependencies(fromStorage)
+        if len(sel_list) > 0:
+            fromStorage = self.getFromStorage(sel_list)
+            if self.fResDep:
+                sorted_list = self.resolveDependencies(fromStorage)
+            else:
+                sorted_list = fromStorage
 
-        for t in sorted_list:
-            self.InsertType(t)
-        print "Imported from storage %d types"%len(sorted_list)
+            for t in sorted_list:
+                self.InsertType(t)
+            print "Imported from storage %d types"%len(sorted_list)
 
     def doExportTypes(self):
-        pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=True)
+        self.fResDep = True
+        pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
-            self.ConnectToStorage()
-        toStorage = []
+            if  not self.ConnectToStorage():
+                return
         self.Initialise()
         sel_list = self.ChooseLocalTypes()
-        for name in sel_list:
-            toStorage.append(self.LocalTypeMap[name])
-        self.saveToStorage(toStorage)
+        if len(sel_list) > 0:
+            if self.fResDep:
+                sorted_list = self.resolveDependenciesForExport(sel_list)
+            else:
+                sorted_list = sel_list
+            self.saveToStorage(sorted_list)
+            print "Exported to storage %d types"%len(sorted_list)
 
 
     def Initialise(self):
@@ -684,8 +709,9 @@ class IdaTypeStringParser:
         if len(self.LocalTypeMap) == 0:
             self.Initialise()
         f = TypeChooseForm("Import types from current IDB",self.LocalTypeMap)
-        selected = f.Go()
+        selected, fResDep = f.Go()
         f.Free()
+        self.fResDep = fResDep
         print selected
         print len(selected)
         return selected
@@ -770,6 +796,67 @@ class IdaTypeStringParser:
                             continue
                         else:
                             raise NameError("resolveDependencies: Unresolved type dependencies %s"%name)
+            prev_len = len(toResolve)
+        return sortedList
+
+    def getFromLocalTypesMap(self,name_list):
+        type_list = []
+        for name in name_list:
+            if name in self.LocalTypeMap:
+                type_list.append(self.LocalTypeMap[name])
+            else:
+                raise NameError("getLocalTypesFromMap: missing type %s"%name)
+
+        return type_list
+
+    def resolveDependenciesForExport(self,startList):
+        toResolve = []
+        toResolveNames = []
+        print "resolveDependenciesForExport: startList", startList
+        prev_len = -1
+        while len(toResolve) != prev_len:
+            prev_len = len(toResolve)
+            if type(startList[0]) == str or type(startList[0]) == unicode:
+                startList = self.getFromLocalTypesMap(startList)
+            for t in startList:
+                for name in t.depends:
+                    if name not in toResolve:
+                        toResolve.append(name)
+                if t.name not in toResolve:
+                    toResolve.append(t.name)
+            startList = toResolve
+        sortedList = []
+        print "resolveDependenciesForExport: toResolveNames", toResolve
+        toResolveNames = toResolve
+        toResolve = self.getFromLocalTypesMap(toResolve)
+        prev_len = len(toResolve)
+        sortedListNames = []
+
+
+        while len(toResolve) > 0:
+            for t in toResolve:
+                if len(t.depends) == 0:
+                    sortedList.append(t)
+                    toResolve.remove(t)
+                    sortedListNames.append(t.name)
+                    toResolveNames.remove(t.name)
+                else:
+                    if self.checkExistence(t.depends,sortedListNames):
+                        sortedList.append(t)
+                        toResolve.remove(t)
+                        sortedListNames.append(t.name)
+                        toResolveNames.remove(t.name)
+            if prev_len == len(toResolve):
+                for t in toResolve:
+                    for name in t.depends:
+                        if self.checkExistence([name],sortedListNames):
+                            continue
+                        elif self.checkExistence([name],toResolveNames):
+                            sortedList.append(self.addTypeWrapper(name))
+                            sortedListNames.append(name)
+                            continue
+                        else:
+                            raise NameError("resolveDependenciesForExport: Unresolved type dependencies %s"%name)
             prev_len = len(toResolve)
         return sortedList
 
@@ -1090,6 +1177,7 @@ def manualTypeCopy(dest, destOff, destLen, src):
 # r = f.Go()
 # f.Free()
 # print r
+# if r != None:
 # if r != None:
 #     client = MongoClient(r[0],int(r[1]))
 #     db = client['LocalTypesStorage']
