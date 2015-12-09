@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="ce4e6305-d98e-4426-b0b7-808ed50bf420" name="Default" comment="fixes&#10;added &quot;Resolve depends&quot; checkbox">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+    <list default="true" id="ce4e6305-d98e-4426-b0b7-808ed50bf420" name="Default" comment="">
+      <change type="DELETED" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="" />
     </list>
     <ignored path="IdaTextTypesParser.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -15,7 +15,7 @@
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="ChangesViewManager" flattened_view="true" show_ignored="false" />
+  <component name="ChangesViewManager" flattened_view="true" show_ignored="true" />
   <component name="CoverageDataManager">
     <SUITE FILE_PATH="coverage/IdaTextTypesParser$IdaTypeStringParser.coverage" NAME="IdaTypeStringParser Coverage Results" MODIFIED="1449005031778" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/IdaTextTypesParser$test_db.coverage" NAME="test_db Coverage Results" MODIFIED="1449374884865" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
@@ -45,8 +45,8 @@
       <file leaf-file-name="IdaTypeStringParser.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/IdaTypeStringParser.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.23141892">
-              <caret line="919" column="0" selection-start-line="919" selection-start-column="0" selection-end-line="919" selection-end-column="0" />
+            <state vertical-scroll-proportion="0.6908784">
+              <caret line="935" column="58" selection-start-line="924" selection-start-column="23" selection-end-line="935" selection-end-column="58" />
               <folding />
             </state>
           </provider>
@@ -737,7 +737,13 @@
       <option name="project" value="LOCAL" />
       <updated>1449584210368</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="fixes&#10;added &quot;Resolve depends&quot; checkbox">
+      <created>1449632524042</created>
+      <option name="number" value="00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1449632524042</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TodoView">
@@ -1275,8 +1281,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/IdaTypeStringParser.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.23141892">
-          <caret line="919" column="0" selection-start-line="919" selection-start-column="0" selection-end-line="919" selection-end-column="0" />
+        <state vertical-scroll-proportion="0.6908784">
+          <caret line="935" column="58" selection-start-line="924" selection-start-column="23" selection-end-line="935" selection-end-column="58" />
           <folding />
         </state>
       </provider>
