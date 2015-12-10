@@ -649,7 +649,7 @@ class IdaTypeStringParser:
             return 0
 
     def add_menu_items(self):
-        if self.add_menu_item_helper("File/Take database snapshot...", "Import types from storage", "Shift+i", 0, self.goImportTypes, None): return 1
+        if self.add_menu_item_helper("File/Take database snapshot...", "Import types from storage", "Shift+i", 0, self.doImportTypes, None): return 1
 
         if self.add_menu_item_helper("File/Take database snapshot...", "Export types to storage", "Shift+g", 0, self.doExportTypes, None): return 1
         # if self.add_menu_item_helper("Search/all error operands", "ROP gadgets...", "Alt+r", 1, self.show_rop_view, None): return 1
@@ -664,7 +664,7 @@ class IdaTypeStringParser:
         for addmenu_item_ctx in self.addmenu_item_ctxs:
             idaapi.del_menu_item(addmenu_item_ctx)
 
-    def goImportTypes(self):
+    def doImportTypes(self):
         self.fResDep = True
         pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
@@ -672,6 +672,7 @@ class IdaTypeStringParser:
                 return
 
         sel_list = self.ChooseTypesFromStorage()
+        print sel_list
         if sel_list is not None and len(sel_list) > 0:
             fromStorage = self.getFromStorage(sel_list)
             if self.fResDep:
@@ -848,8 +849,13 @@ class IdaTypeStringParser:
 
     def ChooseTypesFromStorage(self):
         f = TypeChooseForm("Import types from storage",self.storage.GetAllNames())
-        selected = f.Go()
+        r = f.Go()
         f.Free()
+        if r != None and len(r[0]) != 0:
+            selected, fResDep = r
+            self.fResDep = fResDep
+        else:
+            selected = ""
         # print selected
         # print len(selected)
         return selected
