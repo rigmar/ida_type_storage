@@ -46,16 +46,41 @@ def getline():
 # while getline() != "":
     # print "ok"
 
-p = re.compile(r'\w*(<.*>)\w*')
-tok =  p.findall(str2)
-print tok
-print p.findall(tok[0])
-print tok[0][1:tok[0].find(",")]
-str2 = str2.replace(tok[0],"")
-print str2
-tok =  p.findall(str2)
-print tok
+# p = re.compile(r'\w*(<.*>)\w*')
+# tok =  p.findall(str2)
+# print tok
+# print p.findall(tok[0])
+# print tok[0][1:tok[0].find(",")]
+# str2 = str2.replace(tok[0],"")
+# print str2
+# tok =  p.findall(str2)
+# print tok
+f = '''struct
+{
+ unsigned __int16 e_magic;
+ unsigned __int16 e_cblp;
+ unsigned __int16 e_cp;
+ unsigned __int16 e_crlc;
+ unsigned __int16 e_cparhdr;
+ unsigned __int16 e_minalloc;
+ unsigned __int16 e_maxalloc;
+ unsigned __int16 e_ss;
+ unsigned __int16 e_sp;
+ unsigned __int16 e_csum;
+ unsigned __int16 e_ip;
+ unsigned __int16 e_cs;
+ unsigned __int16 e_lfarlc;
+ unsigned __int16 e_ovno;
+ unsigned __int16 e_res[4];
+ unsigned __int16 e_oemid;
+ unsigned __int16 e_oeminfo;
+ unsigned __int16 e_res2[10];
+ int e_lfanew;
+}'''
 
+r =  f.split("\n",1)
+f = r[0] + " " + name + "\n" + r[1]
+print f
 #print ExtractSpecs(str2)
 
 # class TypeStructureMember(object):

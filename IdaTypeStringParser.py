@@ -34,50 +34,55 @@ class qtype(Structure):
 # Specifying function types for a few IDA SDK functions to keep the
 # pointer-to-pointer args clear.
 
+c_free_til = g_dll.free_til
+c_free_til.argtypes = [
+    c_void_p
+]
+
 c_serialize_tinfo = g_dll.serialize_tinfo
 c_serialize_tinfo.argtypes = [
-    ctypes.POINTER(qtype),
-    ctypes.POINTER(qtype),
-    ctypes.POINTER(qtype),
-    ctypes.POINTER(ctypes.c_ulong),
-    ctypes.c_int
+    ctypes.POINTER(qtype),              #qtype *type
+    ctypes.POINTER(qtype),              #qtype *fields
+    ctypes.POINTER(qtype),              #qtype *fldcmts
+    ctypes.POINTER(ctypes.c_ulong),     #const tinfo_t *tif
+    ctypes.c_int                        #int sudt_flags
 ]
 
 c_new_til = g_dll.new_til
 c_new_til.argtyped = [
-    c_char_p,
-    c_char_p
+    c_char_p,                           #const char *name
+    c_char_p                            #const char *desc
 ]
 c_new_til.restype = c_void_p
 
 c_parse_decl2 = g_dll.parse_decl2
 parse_decl2.argtypes = [
-    c_void_p,
-    c_char_p,
-    ctypes.POINTER(qtype),
-    ctypes.POINTER(ctypes.c_ulong),
-    ctypes.c_int
+    c_void_p,                           #param til          type library to use
+    c_char_p,                           #param decl         C declaration to parse
+    ctypes.POINTER(qtype),              #param[out] name    declared name
+    ctypes.POINTER(ctypes.c_ulong),     #param[out] tif     type info
+    ctypes.c_int                        #param flags        combination of \ref PT_
 ]
 
 c_deserialize_tinfo = g_dll.deserialize_tinfo
 c_deserialize_tinfo.argtypes = [
-    ctypes.POINTER(ctypes.c_ulong),
-    ctypes.c_void_p,
-    ctypes.POINTER(ctypes.c_char_p),
-    ctypes.POINTER(ctypes.c_char_p),
-    ctypes.POINTER(ctypes.c_char_p)
+    ctypes.POINTER(ctypes.c_ulong),     #tinfo_t *tif
+    ctypes.c_void_p,                    #const til_t *til
+    ctypes.POINTER(ctypes.c_char_p),    #const type_t **ptype
+    ctypes.POINTER(ctypes.c_char_p),    #const p_list **pfields
+    ctypes.POINTER(ctypes.c_char_p)     #const p_list **pfldcmts
 ]
 
 c_print_tinfo = g_dll.print_tinfo
 c_print_tinfo.argtypes = [
-    ctypes.POINTER(qtype),
-    ctypes.c_char_p,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.POINTER(ctypes.c_ulong),
-    ctypes.c_char_p,
-    ctypes.c_char_p
+    ctypes.POINTER(qtype),              #qstring *result
+    ctypes.c_char_p,                    #const char *prefix
+    ctypes.c_int,                       #int indent
+    ctypes.c_int,                       #int cmtindent
+    ctypes.c_int,                       #int flags
+    ctypes.POINTER(ctypes.c_ulong),     #const tinfo_t *tif
+    ctypes.c_char_p,                    #const char *name
+    ctypes.c_char_p                     #const char *cmt
 ]
 
 get_named_type = g_dll.get_named_type
@@ -143,6 +148,71 @@ def convert_to_string(src):
         ret = ret + struct.pack("B",ch)
     return ret
 
+duplicate_form_text = r"""STARTITEM 0
+Duplicate resolver
+%s
+Detected type duplicate
+You must select a variant
+
+Default rule if pressed "OK" or "Cancel":
+
+Import from storage - 'Existing type' from storage will replaced by type in IDA
+Export to storage - 'Existing type' from IDA will replaced by type in storage
+
+You can edit structure and use appropriate button to save the edited type
+
+{FormChangeCb}
+<%s:{txtMultiLineText}><##Keep exist type:{iButton1}>
+<%s:{txtMultiLineText2}><##Replace type:{iButton2}>
+
+"""
+
+class DuplicateResolverForm(Form):
+    """Simple Form to test multilinetext and combo box controls"""
+    def __init__(self,fToStorage = False):
+        if fToStorage:
+            form_str = duplicate_form_text%("Export to storage","Existing type in storage","Local type in IDA for replace")
+        else:
+            form_str = duplicate_form_text%("Import from storage","Existing local type in IDA","Local type in storage for replace")
+        self.selected = ""
+        Form.__init__(self, form_str, {
+            'txtMultiLineText': Form.MultiLineTextControl(text="",width=100),
+            'txtMultiLineText2': Form.MultiLineTextControl(text="",width=100),
+            'FormChangeCb': Form.FormChangeCb(self.OnFormChange),
+            'iButton1': Form.ButtonInput(self.OnButton1),
+            'iButton2': Form.ButtonInput(self.OnButton2),
+        })
+
+    def Go(self,text1,text2):
+        self.Compile()
+        self.txtMultiLineText.text = text1
+        self.txtMultiLineText2.text = text2
+        ok = self.Execute()
+        #print "Ok = %d"%ok
+        sel = self.selected
+        #print sel
+        #print len(sel)
+        return sel
+
+    def OnFormChange(self, fid):
+        #print(">>fid:%d" % fid)
+        if fid == self.txtMultiLineText.id:
+            pass
+        elif fid == -2 or fid == -1:
+            self.selected = self.GetControlValue(self.txtMultiLineText).text
+            #print "ti.text = %s" % ti.text
+        return 1
+
+    def OnButton1(self, code=0):
+        #print("Button1 pressed")
+        self.selected = self.GetControlValue(self.txtMultiLineText).text
+        self.Close(1)
+
+
+    def OnButton2(self, code=0):
+        #print("Button2 pressed")
+        self.selected = self.GetControlValue(self.txtMultiLineText2).text
+        self.Close(1)
 
 
 class TypeListChooser(Choose2):
@@ -602,7 +672,7 @@ class IdaTypeStringParser:
                 return
 
         sel_list = self.ChooseTypesFromStorage()
-        if len(sel_list) > 0:
+        if sel_list is not None and len(sel_list) > 0:
             fromStorage = self.getFromStorage(sel_list)
             if self.fResDep:
                 sorted_list = self.resolveDependencies(fromStorage)
@@ -711,6 +781,10 @@ class IdaTypeStringParser:
         if self.getTypeOrdinal(type_obj.name.encode("ascii")) != 0:
             print "InsertType: getTypeOrdinal"
             idx = self.getTypeOrdinal(type_obj.name.encode("ascii"))
+            t = self.ImportLocalType(idx)
+            type_obj = self.DuplicateResolver(type_obj,t)
+            if t.TypeString == type_obj.TypeString and t.TypeFields == type_obj.TypeFields:
+                return 1
         elif len(self.FreeOrdinals) > 0:
             print "InsertType: FreeOrdinals.pop"
             idx = self.FreeOrdinals.pop(0)
@@ -760,11 +834,15 @@ class IdaTypeStringParser:
         if len(self.LocalTypeMap) == 0:
             self.Initialise()
         f = TypeChooseForm("Import types from current IDB",self.LocalTypeMap)
-        selected, fResDep = f.Go()
+        r = f.Go()
         f.Free()
-        self.fResDep = fResDep
-        print selected
-        print len(selected)
+        if r != None and len(r[0]) != 0:
+            selected, fResDep = r
+            self.fResDep = fResDep
+        else:
+            selected = ""
+        #print selected
+        #print len(selected)
         return selected
 
 
@@ -772,16 +850,22 @@ class IdaTypeStringParser:
         f = TypeChooseForm("Import types from storage",self.storage.GetAllNames())
         selected = f.Go()
         f.Free()
-        print selected
-        print len(selected)
+        # print selected
+        # print len(selected)
         return selected
 
     def saveToStorage(self,typesList):
         for t in typesList:
-
             if self.storage.isExist(t.name):
                 if not self.storage.checkEquality(t):
-                    raise NameError("saveToStorage: Duplicated type name (%s) with differ body"%t.name)
+                    t1 = self.DuplicateResolver(t, self.getFromStorage([t.name])[0])
+                    if not self.storage.checkEquality(t1):
+                        self.storage.updateType(t1.name,t1)
+                        self.cachedStorage[t1.name] = t1
+                        print "Edited type updated"
+                    # raise NameError("saveToStorage: Duplicated type name (%s) with differ body"%t.name)
+                    else:
+                        print "Edited type don't have changes"
                 continue
             self.storage.putToStorage(t)
             self.cachedStorage[t.name] = t
@@ -945,7 +1029,52 @@ class IdaTypeStringParser:
         for t in sorted_list:
             self.InsertType(t)
 
+    def DuplicateResolver(self,t1,t2):
+        tif1 = ctypes.c_ulong()
+        tif2 = ctypes.c_ulong()
+        text1 = ""
+        text2 = ""
+        til = c_new_til("temp_til","temp")
+        if c_deserialize_tinfo(byref(tif1),til,ctypes.c_char_p(t1.TypeString),ctypes.c_char_p(t1.TypeFields),ctypes.c_char_p(t1.fieldcmts)) == 1 and \
+        c_deserialize_tinfo(byref(tif2),til,ctypes.c_char_p(t2.TypeString),ctypes.c_char_p(t2.TypeFields),ctypes.c_char_p(t2.fieldcmts)) == 1:
+            ret = qtype()
+            ret.cur_size = 0
+            ret.max_size = 0
+            c_print_tinfo(byref(ret),ctypes.c_char_p(),0,0,idaapi.PRTYPE_MULTI|PRTYPE_TYPE,byref(tif1),ctypes.c_char_p(t1.name),ctypes.c_char_p())
+            text1 = ret.ptr
+            ret = qtype()
+            ret.cur_size = 0
+            ret.max_size = 0
+            c_print_tinfo(byref(ret),ctypes.c_char_p(),0,0,idaapi.PRTYPE_MULTI|PRTYPE_TYPE,byref(tif2),ctypes.c_char_p(t2.name),ctypes.c_char_p())
+            text2 = ret.ptr
+            f = DuplicateResolverForm()
+            sel = f.Go(text1,text2)
+            print sel
+            if len(sel) != 0:
+                if sel == text1:
+                    c_free_til(til)
+                    return t1
+                elif sel == text2:
+                    c_free_til(til)
+                    return t2
+                else:
+                    name = qtype()
+                    name.cur_size = 0
+                    name.max_size = 0
+                    sel = sel.split('\n',1)
+                    if sel[-1] != ';':
+                        sel = sel + ';'
+                    r = idc_parse_decl(til,sel,PT_TYP)
+                    if r is not None:
+                        name, type_str, fields_str = r
+                        return LocalType(name,type_str,fields_str)
+                    else:
+                        raise NameError("DuplicateResolver: bad parse edited type")
+            return None
 
+        else:
+            c_free_til(til)
+            raise NameError("DuplicateResolver.__init__(): Deserialize error")
 
 
 
@@ -974,8 +1103,11 @@ class Storage(object):
         res = self.collection.find({'name':ser_dic['name']})
         if res.count() == 1:
             t1 = res[0]
-            if t1['parsedList'] == ser_dic['parsedList'] and t1['TypeFields'] == ser_dic['TypeFields'] and t1['cmt'] == ser_dic['cmt'] and t1['fieldcmts'] == ser_dic['fieldcmts']:
-                return True
+            if t1['parsedList'] == ser_dic['parsedList']:
+                if t1['TypeFields'] == ser_dic['TypeFields']:
+                    if t1['cmt'] == ser_dic['cmt']:
+                        if t1['fieldcmts'] == ser_dic['fieldcmts']:
+                            return True
         elif res.count() == 0:
             return False
         else:
