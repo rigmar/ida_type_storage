@@ -2,27 +2,27 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="ce4e6305-d98e-4426-b0b7-808ed50bf420" name="Default" comment="">
-      <change type="DELETED" beforePath="$PROJECT_DIR$/1.txt" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/IdaTextTypesParser.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/cache.dat" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/chooser.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/duplicated_view.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/duplicated_view.ui" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/ex_choose2.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/ex_func_chooser.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/log.txt" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/mfc_example_full.h" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/mfc_example_full.rar" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/mfc_example_full_bac.h" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/qt_test.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/temp.p" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test_db.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test_decode.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test_py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/test_type_serial.py" afterPath="" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/duplicated_view.ui" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/mfc_example_full.rar" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/1.txt" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/IdaTextTypesParser.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/cache.dat" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/chooser.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/duplicated_view.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/ex_choose2.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/ex_func_chooser.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/log.txt" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/mfc_example_full.h" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/mfc_example_full_bac.h" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/qt_test.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/temp.p" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/test.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/test_db.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/test_decode.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/test_form.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/test_py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/example/test_type_serial.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/IdaTypeStringParser.py" afterPath="$PROJECT_DIR$/IdaTypeStringParser.py" />
     </list>
     <ignored path="IdaTextTypesParser.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -728,7 +728,13 @@
       <option name="project" value="LOCAL" />
       <updated>1449709535640</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="trash clear">
+      <created>1449758129019</created>
+      <option name="number" value="00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1449758129019</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TodoView">
@@ -782,7 +788,8 @@
     <MESSAGE value="fix" />
     <MESSAGE value="fixes&#10;added &quot;Resolve depends&quot; checkbox" />
     <MESSAGE value="added Type duplicate resolver + fixes" />
-    <option name="LAST_COMMIT_MESSAGE" value="added Type duplicate resolver + fixes" />
+    <MESSAGE value="trash clear" />
+    <option name="LAST_COMMIT_MESSAGE" value="trash clear" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
