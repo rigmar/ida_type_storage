@@ -3,6 +3,7 @@
   <component name="ChangeListManager">
     <list default="true" id="ce4e6305-d98e-4426-b0b7-808ed50bf420" name="Default" comment="">
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/IdaTypeStringParser.py" afterPath="$PROJECT_DIR$/IdaTypeStringParser.py" />
     </list>
     <ignored path="IdaTextTypesParser.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -31,11 +32,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="IdaTypeStringParser.py" pinned="false" current-in-tab="false">
+      <file leaf-file-name="IdaTypeStringParser.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/IdaTypeStringParser.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.0">
-              <caret line="1332" column="1" selection-start-line="1332" selection-start-column="1" selection-end-line="1332" selection-end-column="1" />
+            <state vertical-scroll-proportion="0.9425676">
+              <caret line="1377" column="14" selection-start-line="1377" selection-start-column="14" selection-end-line="1377" selection-end-column="14" />
               <folding>
                 <element signature="e#0#20#0" expanded="true" />
               </folding>
@@ -43,11 +44,11 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="IdaTypeStringParser.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="IdaTypeStringParser.py" pinned="false" current-in-tab="false">
         <entry file="file://F:/IDA 6.8/plugins/IdaTypeStringParser.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.39253998">
-              <caret line="688" column="9" selection-start-line="688" selection-start-column="9" selection-end-line="688" selection-end-column="9" />
+            <state vertical-scroll-proportion="-7.62069">
+              <caret line="688" column="9" selection-start-line="0" selection-start-column="0" selection-end-line="1377" selection-end-column="14" />
               <folding>
                 <element signature="e#0#20#0" expanded="true" />
               </folding>
@@ -78,8 +79,8 @@
         <option value="$PROJECT_DIR$/test_form.py" />
         <option value="$PROJECT_DIR$/test.py" />
         <option value="$PROJECT_DIR$/test_type_serial.py" />
-        <option value="$PROJECT_DIR$/IdaTypeStringParser.py" />
         <option value="F:/IDA 6.8/plugins/IdaTypeStringParser.py" />
+        <option value="$PROJECT_DIR$/IdaTypeStringParser.py" />
       </list>
     </option>
   </component>
@@ -720,7 +721,13 @@
       <option name="project" value="LOCAL" />
       <updated>1449758202441</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="debug off">
+      <created>1449758622022</created>
+      <option name="number" value="00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1449758622022</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="TodoView">
@@ -776,7 +783,8 @@
     <MESSAGE value="added Type duplicate resolver + fixes" />
     <MESSAGE value="trash clear" />
     <MESSAGE value="add exampleas and test files" />
-    <option name="LAST_COMMIT_MESSAGE" value="add exampleas and test files" />
+    <MESSAGE value="debug off" />
+    <option name="LAST_COMMIT_MESSAGE" value="debug off" />
     <option name="UPDATE_GROUP_BY_PACKAGES" value="true" />
   </component>
   <component name="XDebuggerManager">
@@ -1001,20 +1009,20 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/IdaTypeStringParser.py">
+    <entry file="file://F:/IDA 6.8/plugins/IdaTypeStringParser.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.0">
-          <caret line="1332" column="1" selection-start-line="1332" selection-start-column="1" selection-end-line="1332" selection-end-column="1" />
+        <state vertical-scroll-proportion="-7.62069">
+          <caret line="688" column="9" selection-start-line="0" selection-start-column="0" selection-end-line="1377" selection-end-column="14" />
           <folding>
             <element signature="e#0#20#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://F:/IDA 6.8/plugins/IdaTypeStringParser.py">
+    <entry file="file://$PROJECT_DIR$/IdaTypeStringParser.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.39253998">
-          <caret line="688" column="9" selection-start-line="688" selection-start-column="9" selection-end-line="688" selection-end-column="9" />
+        <state vertical-scroll-proportion="0.9425676">
+          <caret line="1377" column="14" selection-start-line="1377" selection-start-column="14" selection-end-line="1377" selection-end-column="14" />
           <folding>
             <element signature="e#0#20#0" expanded="true" />
           </folding>

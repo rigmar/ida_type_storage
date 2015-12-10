@@ -3,7 +3,7 @@ from idc import *
 import idc
 import ctypes
 import struct
-import pydevd
+#import pydevd
 import pickle
 from pymongo import *
 from bson import *
@@ -666,7 +666,7 @@ class IdaTypeStringParser:
 
     def doImportTypes(self):
         self.fResDep = True
-        pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        #pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
@@ -686,7 +686,7 @@ class IdaTypeStringParser:
 
     def doExportTypes(self):
         self.fResDep = True
-        pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        #pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
