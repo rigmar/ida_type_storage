@@ -35,20 +35,8 @@
       <file leaf-file-name="IdaTypeStringParser.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/IdaTypeStringParser.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.9425676">
-              <caret line="1377" column="14" selection-start-line="1377" selection-start-column="14" selection-end-line="1377" selection-end-column="14" />
-              <folding>
-                <element signature="e#0#20#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="IdaTypeStringParser.py" pinned="false" current-in-tab="false">
-        <entry file="file://F:/IDA 6.8/plugins/IdaTypeStringParser.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="-7.62069">
-              <caret line="688" column="9" selection-start-line="0" selection-start-column="0" selection-end-line="1377" selection-end-column="14" />
+            <state vertical-scroll-proportion="0.7347973">
+              <caret line="1184" column="30" selection-start-line="1184" selection-start-column="30" selection-end-line="1184" selection-end-column="30" />
               <folding>
                 <element signature="e#0#20#0" expanded="true" />
               </folding>
@@ -79,8 +67,8 @@
         <option value="$PROJECT_DIR$/test_form.py" />
         <option value="$PROJECT_DIR$/test.py" />
         <option value="$PROJECT_DIR$/test_type_serial.py" />
-        <option value="F:/IDA 6.8/plugins/IdaTypeStringParser.py" />
         <option value="$PROJECT_DIR$/IdaTypeStringParser.py" />
+        <option value="F:/IDA 6.8/plugins/IdaTypeStringParser.py" />
       </list>
     </option>
   </component>
@@ -727,7 +715,13 @@
       <option name="project" value="LOCAL" />
       <updated>1449758622022</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="debug off">
+      <created>1449758638585</created>
+      <option name="number" value="00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1449758638585</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TodoView">
@@ -1009,20 +1003,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://F:/IDA 6.8/plugins/IdaTypeStringParser.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="-7.62069">
-          <caret line="688" column="9" selection-start-line="0" selection-start-column="0" selection-end-line="1377" selection-end-column="14" />
-          <folding>
-            <element signature="e#0#20#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/IdaTypeStringParser.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.9425676">
-          <caret line="1377" column="14" selection-start-line="1377" selection-start-column="14" selection-end-line="1377" selection-end-column="14" />
+        <state vertical-scroll-proportion="0.7347973">
+          <caret line="1184" column="30" selection-start-line="1184" selection-start-column="30" selection-end-line="1184" selection-end-column="30" />
           <folding>
             <element signature="e#0#20#0" expanded="true" />
           </folding>

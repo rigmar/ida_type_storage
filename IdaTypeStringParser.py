@@ -1090,14 +1090,14 @@ class Storage(object):
         self.client = MongoClient(ip, port)
         self.db = self.client["LocalTypesStorage"]
         self.collection = self.db[target_collection]
-        self.cache ={}
+        #self.cache ={}
 
     def putToStorage(self,t):
         self.collection.insert_one(t.to_dict())
         res = self.collection.find({'name':t.name})
-        if res.count() == 1:
-            self.cache[t.name] = res[0]
-        else:
+        if res.count() != 1:
+            #self.cache[t.name] = res[0]
+        # else:
             raise NameError("putToStorage: Putting error. Count = %d. Type %s"%(res.count(),t.name))
 
 
@@ -1121,11 +1121,11 @@ class Storage(object):
         return False
 
     def getFromStorage(self,name):
-        if name in self.cache:
-            return LocalType().from_dict(self.cache[name])
+        # if name in self.cache:
+        #     return LocalType().from_dict(self.cache[name])
         res = self.collection.find({"name":name})
         if res.count() == 1:
-            self.cache[name] = res[0]
+            #self.cache[name] = res[0]
             return LocalType().from_dict(res[0])
         elif res.count() == 0:
             return None
@@ -1144,7 +1144,7 @@ class Storage(object):
     def updateType(self,name,t):
         ret = self.collection.replace_one({'name':name},t.to_dict())
         if ret.matched_count == 1:
-            self.cache[name] = t.to_dict()
+            #self.cache[name] = t.to_dict()
             return True
         elif ret.matched_count == 0:
             return False
@@ -1153,13 +1153,13 @@ class Storage(object):
 
     def GetAllNames(self):
         names = []
-        if len(self.cache) == 0:
-            for t in self.collection.find():
-                names.append(t['name'])
-                self.cache[t['name']] = t
-        else:
-            for name in self.cache.keys():
-                names.append(name)
+        # if len(self.cache) == 0:
+        for t in self.collection.find():
+            names.append(t['name'])
+                # self.cache[t['name']] = t
+        # else:
+        #     for name in self.cache.keys():
+        #         names.append(name)
         return names
 
     def GetAllTypes(self):
