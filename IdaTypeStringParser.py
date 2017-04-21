@@ -1,17 +1,60 @@
 from idaapi import *
 from idc import *
+import idaapi
 import idc
 import ctypes
-import struct
-#import pydevd
 import pickle
-from pymongo import *
-from bson import *
+import os, sys
 
+fSQL = True
+if fSQL:
+    import sqlite3
+else:
+    from pymongo import *
+    from bson import *
 
+fDebug = False
+if fDebug:
+    import pydevd
 
+class ActionWrapper(idaapi.action_handler_t):
+    def __init__(self, id, name, shortcut, menuPath, callback, args = None):
+        idaapi.action_handler_t.__init__(self)
+        self.id = id
+        self.name = name
+        self.shortcut = shortcut
+        self.menuPath = menuPath
+        self.callback = callback
+        self.args = args
+        self.registerAction()
 
+    def registerAction(self):
+        action_desc = idaapi.action_desc_t(
+        self.id,        # The action id
+        self.name,      # The action text.
+        self,           # The action handler.
+        self.shortcut,  # Optional: the action shortcut
+        "",   # Optional: the action tooltip (available in menus/toolbar)
+        -1)      # Optional: the action icon (shows when in menus/toolbars)
+        if not idaapi.register_action(action_desc):
+            return False
+        if not idaapi.attach_action_to_menu(self.menuPath, self.id, 0):
+            return False
+        return True
 
+    def unregisterAction(self):
+        idaapi.detach_action_from_menu(self.menuPath, self.id)
+        idaapi.unregister_action(self.id)
+
+    def activate(self, ctx):
+        if self.args is None:
+            self.callback(ctx)
+        else:
+            self.callback(ctx, self.args)
+        return 1
+
+    def update(self, ctx):
+        return idaapi.AST_ENABLE_ALWAYS
 
 ############################################################
 # Several type-related functions aren't accessibly via IDAPython
@@ -156,24 +199,32 @@ You must select a variant
 
 Default rule if pressed "OK" or "Cancel":
 
-Import from storage - 'Existing type' from storage will replaced by type in IDA
-Export to storage - 'Existing type' from IDA will replaced by type in storage
+Import from storage - Type in IDA will be replaced by type from storage
+Export to storage - Type in storage will be replaced by type from IDA
 
 You can edit structure and use appropriate button to save the edited type
 
 {FormChangeCb}
-<%s:{txtMultiLineText}><##Keep exist type:{iButton1}>
-<%s:{txtMultiLineText2}><##Replace type:{iButton2}>
+<%s:{txtMultiLineText}><##%s:{iButton1}>
+<%s:{txtMultiLineText2}><##%s:{iButton2}>
 
 """
+
+def find_ida_dir():
+    name = "idaq.exe"
+    for p in sys.path:
+        if "ida" in p.lower():
+            for root, dirs, files in os.walk(p):
+                if name in files:
+                    return root
 
 class DuplicateResolverForm(Form):
     """Simple Form to test multilinetext and combo box controls"""
     def __init__(self,fToStorage = False):
         if fToStorage:
-            form_str = duplicate_form_text%("Export to storage","Existing type in storage","Local type in IDA for replace")
+            form_str = duplicate_form_text%("Export to storage","Type in storage", "Do not change type in storage","Local type in IDA","Replace by type from IDA")
         else:
-            form_str = duplicate_form_text%("Import from storage","Existing local type in IDA","Local type in storage for replace")
+            form_str = duplicate_form_text%("Import from storage","Local type in IDA","Do not change local type","Type in storage","Replace by type from storage")
         self.selected = ""
         Form.__init__(self, form_str, {
             'txtMultiLineText': Form.MultiLineTextControl(text="",width=100),
@@ -199,7 +250,7 @@ class DuplicateResolverForm(Form):
         if fid == self.txtMultiLineText.id:
             pass
         elif fid == -2 or fid == -1:
-            self.selected = self.GetControlValue(self.txtMultiLineText).text
+            self.selected = self.GetControlValue(self.txtMultiLineText2).text
             #print "ti.text = %s" % ti.text
         return 1
 
@@ -384,7 +435,7 @@ class ProjectChooser(Choose2):
     """
     A simple chooser to be used as an embedded chooser
     """
-    def __init__(self, title, name_list, flags=0):
+    def __init__(self, title, name_list, db = None, flags=0):
         Choose2.__init__(self,
                          title,
                          [ ["Project name", 40] ],
@@ -396,6 +447,8 @@ class ProjectChooser(Choose2):
         self.selcount = 0
         self.selected = []
         self.make_items(name_list)
+        #print self.items
+        self.db = db
 
     def make_items(self,item_list):
         self.n = 1
@@ -420,10 +473,27 @@ class ProjectChooser(Choose2):
 
     def OnSelectLine(self, n):
         #print "Selected %d"%n
+        #print self.items[n]
         self.selected = self.items[n]
 
     def OnSelectionChange(self, sel_list):
-        self.selected = self.items[sel_list[0]-1]
+        self.selected = []
+        for sel in sel_list:
+            self.selected.append(self.items[sel-1][0])
+
+    def OnDeleteLine(self, n):
+        #print("del %d " % n)
+        if n > 0:
+            # print("del %d " % n)
+            # print self.items[n]
+            if fSQL:
+                self.db.deleteProject(self.items[n][0])
+            else:
+                self.db[self.items[n][0]].drop()
+            del self.items[n]
+        return n
+
+
 
 
     # def OnSelectionChange(self, sel_list):
@@ -435,17 +505,20 @@ class ProjectChooser(Choose2):
 
 
 class ChooseProject(Form):
-    def __init__(self,coll_list):
+    def __init__(self,coll_list,db = None):
         self.__n = 0
-        self.EChooser = ProjectChooser("Projects in storage",coll_list)
+        self.selected = None
+        self.EChooser = ProjectChooser("Projects in storage",coll_list, db)
+        self.db = db
         Form.__init__(self,
 r"""
 Choose project for connect
 
-<Projects in storage:{cEChooser}>   <##Create new project:{iButtonNewProject}>
+<Projects in storage:{cEChooser}>   <##Create new project:{iButtonNewProject}><##Delete Project:{iButtonDelProject}>
 """, {
         'cEChooser' : Form.EmbeddedChooserControl(self.EChooser),
         'iButtonNewProject': Form.ButtonInput(self.onNewProject),
+        'iButtonDelProject': Form.ButtonInput(self.onDelProject),
     })
 
     def Go(self):
@@ -457,6 +530,7 @@ Choose project for connect
             #print sel
             #print len(sel)
             return sel[0]
+        return None
 
     def OnFormChange(self, fid):
         if fid == -1:
@@ -467,10 +541,45 @@ Choose project for connect
         self.EChooser.selected = [s]
         self.Close(1)
 
+    def onDelProject(self,code = 0):
+        if len(self.EChooser.selected) > 0:
+            # print self.EChooser.selected
+            for sel in self.EChooser.selected:
+                if fSQL:
+                    self.db.deleteProject(sel)
+                else:
+                    self.db[sel].drop()
+                self.EChooser.items.remove([sel])
+            # print self.EChooser.items
+            # print self.controls
+            self.RefreshField(self.controls['cEChooser'])
+
+
+class ConnectToSQLBase(Form):
+    def __init__(self,addr):
+        self.storage = None
+        self.iBaseFile = None
+
+        Form.__init__(self,r"""
+        Choose path with storage
+
+        <#Hint1#SQLite file path:{iBaseFile}>
+        """, {
+            'iBaseFile':Form.FileInput(open=True,hlp='*.db',value = os.path.join(find_ida_dir(),"TypeStorage.db") if addr is None else addr),
+        })
+
+    def Go(self):
+        self.Compile()
+        ok = self.Execute()
+        print "ConnectToSQLBase: Go: Ok = %d; Base file path = %s"%(ok,self.iBaseFile.value)
+        if ok == 1:
+            return self.iBaseFile.value
+        return None
+
 
 
 class ConnectToBase(Form):
-    def __init__(self):
+    def __init__(self,addr):
         self.storage = None
         self.iServerIP = None
         self.iPort = None
@@ -480,8 +589,8 @@ class ConnectToBase(Form):
 
         <#Hint1#Server IP:{iServerIP}> : <#Hint1#Server port:{iPort}>
         """, {
-            'iServerIP':Form.StringInput(value = "127.0.0.1"),
-            'iPort':Form.NumericInput(Form.FT_DEC,27017),
+            'iServerIP':Form.StringInput(value = "127.0.0.1" if addr is None else addr[0]),
+            'iPort':Form.NumericInput(Form.FT_DEC,27017 if addr is None else addr[1]),
         })
 
     def Go(self):
@@ -593,7 +702,7 @@ def encode_ordinal(ordinal):
         while bt > 0x7f:
             bt = bt // 0x80
             enc.append(bt&0x7f|0x80)
-    stemp = []
+    stemp = ""
     for i in range(0,len(enc)):
         stemp = stemp + struct.pack("B",enc.pop(-1))
     return stemp
@@ -608,30 +717,64 @@ class IdaTypeStringParser:
         self.typesNamesInStorage = []
         self.cachedStorage = {}
         self.fResDep = True
+        self.storageAddr = None
+        self.actions = []
+
+    def ReconnectToStorage(self,ctx):
+        if self.storage is not None:
+            self.storage.close_storage()
+            self.storage = None
+            print "Disconnected from storage"
+        if self.storage is None:
+            if not self.ConnectToStorage():
+                return
+        return
+
 
     def ConnectToStorage(self):
         #try:
-        f = ConnectToBase()
-        r = f.Go()
-        f.Free()
-        print r
-        if r != None:
-            serverIP, port = r
-            port = int(port)
-            try:
-                client_try = MongoClient(serverIP,port)
-                db = client_try['LocalTypesStorage']
-                coll_names = db.collection_names(include_system_collections = False)
-                client_try.close()
-                f = ChooseProject(coll_names)
+        if fSQL:
+            f = ConnectToSQLBase(self.storageAddr)
+            r = f.Go()
+            f.Free()
+            print r
+            if r != None:
+                #try:
+                self.storageAddr = r
+                db = Storage_sqlite(r)
+                f = ChooseProject(db.GetAllProjects(),db)
                 r1 = f.Go()
                 f.Free()
                 #print r1
                 if r1 is not None:
-                    self.storage = Storage(serverIP,port,r1)
+                    db.connect(r1)
+                    self.storage = db
                     return True
-            except:
-                Warning("Could not connect to the storage")
+                #except:
+                    #Warning("Could not connect to the storage")
+        else:
+            f = ConnectToBase(self.storageAddr)
+            r = f.Go()
+            f.Free()
+            print r
+            if r != None:
+                serverIP, port = r
+                port = int(port)
+                self.storageAddr = (serverIP,port)
+                try:
+                    client_try = MongoClient(serverIP,port)
+                    db = client_try['LocalTypesStorage']
+                    coll_names = db.collection_names(include_system_collections = False)
+                    client_try.close()
+                    f = ChooseProject(coll_names,db)
+                    r1 = f.Go()
+                    f.Free()
+                    #print r1
+                    if r1 is not None:
+                        self.storage = Storage(serverIP,port,r1)
+                        return True
+                except:
+                    Warning("Could not connect to the storage")
         return False
         #     else:
         #         raise
@@ -649,9 +792,13 @@ class IdaTypeStringParser:
             return 0
 
     def add_menu_items(self):
-        if self.add_menu_item_helper("File/Take database snapshot...", "Import types from storage", "Shift+i", 0, self.doImportTypes, None): return 1
+        if not create_menu("TypeStoragePlugin:Menu", "Type storage", "Options"): return 1
 
-        if self.add_menu_item_helper("File/Take database snapshot...", "Export types to storage", "Shift+g", 0, self.doExportTypes, None): return 1
+        self.actions.append(ActionWrapper("TypeStoragePlugin:doImportTypes","Import types from storage","Shift+i","Type storage",self.doImportTypes))
+        self.actions.append(ActionWrapper("TypeStoragePlugin:doExportTypes","Export types to storage","Shift+g","Type storage",self.doExportTypes))
+        self.actions.append(ActionWrapper("TypeStoragePlugin:ReconnectToStorage","Reconnect","","Type storage",self.ReconnectToStorage))
+        self.actions.append(ActionWrapper("TypeStoragePlugin:doPullAll","Pull all types from storage","Shift-Alt-i","Type storage",self.doPullAll))
+        self.actions.append(ActionWrapper("TypeStoragePlugin:doPushAll", "Push all types to storage", "Shift-Alt-g", "Type storage",self.doPushAll))
         # if self.add_menu_item_helper("Search/all error operands", "ROP gadgets...", "Alt+r", 1, self.show_rop_view, None): return 1
         #
         # if self.add_menu_item_helper("Edit/Begin selection", "Create pattern...", "Shift+c", 0, self.show_pattern_create, None): return 1
@@ -661,12 +808,35 @@ class IdaTypeStringParser:
         return 0
 
     def del_menu_items(self):
-        for addmenu_item_ctx in self.addmenu_item_ctxs:
-            idaapi.del_menu_item(addmenu_item_ctx)
+        for act in self.actions:
+            act.unregisterAction()
 
-    def doImportTypes(self):
+    def doPushAll(self,ctx):
+        if fDebug ==True:
+            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        if self.storage is None:
+            if  not self.ConnectToStorage():
+                return
+        self.Initialise()
+        sorted_list = self.resolveDependenciesForExport(self.LocalTypeMap.values())
+        self.saveToStorage(sorted_list,True)
+
+    def doPullAll(self,ctx):
+        if fDebug ==True:
+            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        if self.storage is None:
+            if  not self.ConnectToStorage():
+                return
+        self.Initialise()
+        sorted_list = self.resolveDependencies(self.storage.GetAllNames())
+        for t in sorted_list:
+            self.InsertType(t,True)
+
+
+    def doImportTypes(self,ctx):
         self.fResDep = True
-        #pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        if fDebug ==True:
+            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
@@ -684,9 +854,10 @@ class IdaTypeStringParser:
                 self.InsertType(t)
             print "Imported from storage %d types"%len(sorted_list)
 
-    def doExportTypes(self):
+    def doExportTypes(self,ctx):
         self.fResDep = True
-        #pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        if fDebug == True:
+            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
@@ -773,7 +944,7 @@ class IdaTypeStringParser:
             return LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass)
         return None
 
-    def InsertType(self,type_obj):
+    def InsertType(self,type_obj,fReplace = False):
         global my_ti
         my_ti = idaapi.cvar.idati
         print "InsertType:",type(type_obj.name), type_obj.name
@@ -783,9 +954,10 @@ class IdaTypeStringParser:
             print "InsertType: getTypeOrdinal"
             idx = self.getTypeOrdinal(type_obj.name.encode("ascii"))
             t = self.ImportLocalType(idx)
-            type_obj = self.DuplicateResolver(type_obj,t)
-            if t.TypeString == type_obj.TypeString and t.TypeFields == type_obj.TypeFields:
+            if t.isEqual(type_obj) or type_obj.TypeString == wrapperTypeString:
                 return 1
+            if not fReplace:
+                type_obj = self.DuplicateResolver(t,type_obj,False)
         elif len(self.FreeOrdinals) > 0:
             print "InsertType: FreeOrdinals.pop"
             idx = self.FreeOrdinals.pop(0)
@@ -807,8 +979,10 @@ class IdaTypeStringParser:
         #     typ_fieldcmts = 0
         # else:
         typ_fieldcmts = ctypes.c_char_p(type_obj.fieldcmts)
+        print type_obj.print_type()
         if type(type_obj.sclass) == int:
             type_obj.sclass = ctypes.c_ulong(type_obj.sclass)
+        ret = 1
         ret = set_numbered_type(
             my_til,
             idx,
@@ -820,6 +994,7 @@ class IdaTypeStringParser:
             typ_fieldcmts,
             ctypes.byref(type_obj.sclass)
         )
+
         print "InsertType: ret = %d"%ret
         if ret != 1:
             print "bad"
@@ -860,21 +1035,25 @@ class IdaTypeStringParser:
         # print len(selected)
         return selected
 
-    def saveToStorage(self,typesList):
+    def saveToStorage(self,typesList,fReplace = False):
         for t in typesList:
             if self.storage.isExist(t.name):
-                if not self.storage.checkEquality(t):
-                    t1 = self.DuplicateResolver(t, self.getFromStorage([t.name])[0])
-                    if not self.storage.checkEquality(t1):
+                tp = self.getFromStorage([t.name])[0]
+                if not t.isEqual(tp):
+                    if fReplace:
+                        t1 = t
+                    else:
+                        t1 = self.DuplicateResolver(tp,t,True)
+                    if not tp.isEqual(t1):
                         self.storage.updateType(t1.name,t1)
-                        self.cachedStorage[t1.name] = t1
+                        #self.cachedStorage[t1.name] = t1
                         print "Edited type updated"
                     # raise NameError("saveToStorage: Duplicated type name (%s) with differ body"%t.name)
                     else:
                         print "Edited type don't have changes"
                 continue
             self.storage.putToStorage(t)
-            self.cachedStorage[t.name] = t
+            #self.cachedStorage[t.name] = t
 
     def getFromStorage(self,typesListNames):
         typesList = []
@@ -886,7 +1065,7 @@ class IdaTypeStringParser:
             if t is None:
                 raise NameError("getFromStorage: Type name (%s) not in the storage"%name)
             typesList.append(t)
-            self.cachedStorage[name] = t
+            #self.cachedStorage[name] = t
         return typesList
 
     def resolveDependencies(self,startList):
@@ -895,6 +1074,7 @@ class IdaTypeStringParser:
         print "resolveDependencies: startList", startList
         prev_len = -1
         while len(toResolve) != prev_len:
+            prev_len = len(toResolve)
             if type(startList[0]) == str or type(startList[0]) == unicode:
                 startList = self.getFromStorage(startList)
             for t in startList:
@@ -903,7 +1083,7 @@ class IdaTypeStringParser:
                         toResolve.append(name)
                 if t.name not in toResolve:
                     toResolve.append(t.name)
-            prev_len = len(toResolve)
+
             startList = toResolve
         sortedList = []
         print "resolveDependencies: toResolveNames", toResolve
@@ -943,7 +1123,7 @@ class IdaTypeStringParser:
     def getFromLocalTypesMap(self,name_list):
         type_list = []
         for name in name_list:
-            if name in self.LocalTypeMap:
+            if (type(name) == str or type(name) == unicode) and name in self.LocalTypeMap:
                 type_list.append(self.LocalTypeMap[name])
             else:
                 raise NameError("getLocalTypesFromMap: missing type %s"%name)
@@ -974,32 +1154,33 @@ class IdaTypeStringParser:
         sortedListNames = []
 
 
-        while len(toResolve) > 0:
-            for t in toResolve:
-                if len(t.depends) == 0:
-                    sortedList.append(t)
-                    toResolve.remove(t)
-                    sortedListNames.append(t.name)
-                    toResolveNames.remove(t.name)
-                else:
-                    if self.checkExistence(t.depends,sortedListNames):
-                        sortedList.append(t)
-                        toResolve.remove(t)
-                        sortedListNames.append(t.name)
-                        toResolveNames.remove(t.name)
-            if prev_len == len(toResolve):
-                for t in toResolve:
-                    for name in t.depends:
-                        if self.checkExistence([name],sortedListNames):
-                            continue
-                        elif self.checkExistence([name],toResolveNames):
-                            sortedList.append(self.addTypeWrapper(name))
-                            sortedListNames.append(name)
-                            continue
-                        else:
-                            raise NameError("resolveDependenciesForExport: Unresolved type dependencies %s"%name)
-            prev_len = len(toResolve)
-        return sortedList
+        # while len(toResolve) > 0:
+        #     for t in toResolve:
+        #         if len(t.depends) == 0:
+        #             sortedList.append(t)
+        #             toResolve.remove(t)
+        #             sortedListNames.append(t.name)
+        #             toResolveNames.remove(t.name)
+        #         else:
+        #             if self.checkExistence(t.depends,sortedListNames):
+        #                 sortedList.append(t)
+        #                 toResolve.remove(t)
+        #                 sortedListNames.append(t.name)
+        #                 toResolveNames.remove(t.name)
+        #     if prev_len == len(toResolve):
+        #         for t in toResolve:
+        #             for name in t.depends:
+        #                 if self.checkExistence([name],sortedListNames):
+        #                     continue
+        #                 elif self.checkExistence([name],toResolveNames):
+        #                     sortedList.append(self.addTypeWrapper(name))
+        #                     sortedListNames.append(name)
+        #                     continue
+        #                 else:
+        #                     raise NameError("resolveDependenciesForExport: Unresolved type dependencies %s"%name)
+        #     prev_len = len(toResolve)
+        # return sortedList
+        return toResolve
 
 
     def addTypeWrapper(self,name):
@@ -1008,13 +1189,11 @@ class IdaTypeStringParser:
 
 
     def checkExistence(self,name_list,target_list):
-        fNeq = 0
         for name in name_list:
-            if name in target_list:
-                fNeq += 1
-        if len(name_list) == fNeq:
-            return True
-        return False
+            if name not in target_list:
+                return False
+        return True
+
 
     def allTypeToStorage(self):
         toStorage = []
@@ -1035,54 +1214,180 @@ class IdaTypeStringParser:
         for t in sorted_list:
             self.InsertType(t)
 
-    def DuplicateResolver(self,t1,t2):
-        tif1 = ctypes.c_ulong()
-        tif2 = ctypes.c_ulong()
-        text1 = ""
-        text2 = ""
-        til = c_new_til("temp_til","temp")
-        if c_deserialize_tinfo(byref(tif1),til,ctypes.c_char_p(t1.TypeString),ctypes.c_char_p(t1.TypeFields),ctypes.c_char_p(t1.fieldcmts)) == 1 and \
-        c_deserialize_tinfo(byref(tif2),til,ctypes.c_char_p(t2.TypeString),ctypes.c_char_p(t2.TypeFields),ctypes.c_char_p(t2.fieldcmts)) == 1:
-            ret = qtype()
-            ret.cur_size = 0
-            ret.max_size = 0
-            c_print_tinfo(byref(ret),ctypes.c_char_p(),0,0,idaapi.PRTYPE_MULTI|PRTYPE_TYPE,byref(tif1),ctypes.c_char_p(t1.name),ctypes.c_char_p())
-            text1 = ret.ptr
-            ret = qtype()
-            ret.cur_size = 0
-            ret.max_size = 0
-            c_print_tinfo(byref(ret),ctypes.c_char_p(),0,0,idaapi.PRTYPE_MULTI|PRTYPE_TYPE,byref(tif2),ctypes.c_char_p(t2.name),ctypes.c_char_p())
-            text2 = ret.ptr
-            f = DuplicateResolverForm()
-            sel = f.Go(text1,text2)
-            print sel
-            if len(sel) != 0:
-                if sel == text1:
-                    c_free_til(til)
-                    return t1
-                elif sel == text2:
-                    c_free_til(til)
-                    return t2
+    def FixSTLNames(self,types_list, fFromStorage = False):
+        fixed_names = {}
+        if type(types_list) == str or type(types_list) == unicode:
+                if fFromStorage:
+                    types_list = self.getFromStorage(types_list)
                 else:
-                    name = qtype()
-                    name.cur_size = 0
-                    name.max_size = 0
-                    sel = sel.split('\n',1)
-                    if sel[-1] != ';':
-                        sel = sel + ';'
-                    r = idc_parse_decl(til,sel,PT_TYP)
-                    if r is not None:
-                        name, type_str, fields_str = r
-                        return LocalType(name,type_str,fields_str)
-                    else:
-                        raise NameError("DuplicateResolver: bad parse edited type")
+                    types_list = self.getFromLocalTypesMap(types_list)
+        for t in types_list:
+            p = re.compile(r'\w*(<.*>)\w*')
+            tok =  p.findall(t.name)
+            if len(tok) > 0:
+                if tok[0].find(",") == -1:
+                    t.name.replace(tok[0],"") +"_" + tok[0][1:tok[0].find(",")].rstrip(" *").strip(" *").replace(" ","_")
+
+
+
+
+    def DuplicateResolver(self,t1,t2,fToStorage = False):
+        # tif1 = ctypes.c_ulong()
+        # tif2 = ctypes.c_ulong()
+        # text1 = ""
+        # text2 = ""
+        til = c_new_til("temp_til","temp")
+        # if c_deserialize_tinfo(byref(tif1),til,ctypes.c_char_p(t1.TypeString),ctypes.c_char_p(t1.TypeFields),ctypes.c_char_p(t1.fieldcmts)) == 1 and \
+        # c_deserialize_tinfo(byref(tif2),til,ctypes.c_char_p(t2.TypeString),ctypes.c_char_p(t2.TypeFields),ctypes.c_char_p(t2.fieldcmts)) == 1:
+        #     ret = qtype()
+        #     ret.cur_size = 0
+        #     ret.max_size = 0
+        #     c_print_tinfo(byref(ret),ctypes.c_char_p(),0,0,idaapi.PRTYPE_MULTI|PRTYPE_TYPE,byref(tif1),ctypes.c_char_p(t1.name),ctypes.c_char_p())
+            # text1 = ret.ptr
+            #text1 = idc_print_type(t1.TypeString,t1.TypeFields,t1.name,PRTYPE_MULTI|PRTYPE_TYPE).strip()
+        text1 = t1.print_type()
+            # ret = qtype()
+            # ret.cur_size = 0
+            # ret.max_size = 0
+            # c_print_tinfo(byref(ret),ctypes.c_char_p(),0,0,idaapi.PRTYPE_MULTI|PRTYPE_TYPE,byref(tif2),ctypes.c_char_p(t2.name),ctypes.c_char_p())
+            # # text2 = idc_print_type(t2.TypeString,t2.TypeFields,t2.name,PRTYPE_MULTI|PRTYPE_TYPE).strip()
+        text2 = t2.print_type()
+        f = DuplicateResolverForm(fToStorage)
+        sel = f.Go(text1,text2)
+        print sel
+        if len(sel) != 0:
+            if sel == text1:
+                c_free_til(til)
+                return t1
+            elif sel == text2:
+                c_free_til(til)
+                return t2
+            else:
+                name = qtype()
+                name.cur_size = 0
+                name.max_size = 0
+                sel = sel.split('\n',1)
+                if sel[-1] != ';':
+                    sel = sel + ';'
+                r = idc_parse_decl(til,sel,PT_TYP)
+                if r is not None:
+                    name, type_str, fields_str = r
+                    return LocalType(name,type_str,fields_str)
+                else:
+                    raise NameError("DuplicateResolver: bad parse edited type")
+        return None
+        #
+        # else:
+        #     c_free_til(til)
+        #     raise NameError("DuplicateResolver.__init__(): Deserialize error")
+
+class Storage_sqlite(object):
+
+    def __init__(self,db_name,project_name = ""):
+        self.db_name = db_name
+        self.project_name = project_name
+        if self.project_name != "" and not self.isProjectExist(self.project_name):
+            self.request("CREATE TABLE %s (name text, TypeString text, TypeFields text, cmt text, fieldcmts text, sclass text, parsedList text, depends text, depends_ordinals text)"%(self.project_name))
+
+    def connect(self,project_name):
+        self.project_name = project_name
+        if self.project_name != "" and not self.isProjectExist(self.project_name):
+            self.request("CREATE TABLE %s (name text, TypeString text, TypeFields text, cmt text, fieldcmts text, sclass text, parsedList text, depends text, depends_ordinals text)"%(self.project_name))
+
+    def request(self,req_str,vals = ()):
+        if type(vals) != tuple:
+            vals = (vals,)
+        conn = sqlite3.connect(self.db_name)
+        c = conn.cursor()
+        if len(vals) == 0:
+            res = c.execute(req_str)
+        else:
+            res = c.execute(req_str,vals)
+        res = res.fetchall()
+        conn.commit()
+        conn.close()
+        return res
+
+    def modify_ret(self,res):
+        if len(res) > 0 and len(res[0]) == 1:
+            ret = []
+            for el in res:
+                ret.append(el[0].encode("ascii"))
+            return ret
+        return res
+
+    def GetAllProjects(self):
+        return self.modify_ret(self.request("SELECT name FROM sqlite_master WHERE type='table'"))
+
+    def GetAllNames(self):
+        return self.modify_ret(self.request("SELECT name FROM %s"%(self.project_name)))
+
+    def isProjectExist(self,name=""):
+        return  True if len(self.request("SELECT name FROM sqlite_master WHERE type='table' AND name=?;",(name if name == "" else self.project_name,))) == 1 else False
+
+    def deleteProject(self,name = ""):
+        if name == "":
+            name = self.project_name
+        self.request("drop table %s"%(name))
+
+    def close_storage(self):
+        pass
+
+    def to_dict(self,res):
+        ser_dic = {}
+        ser_dic['name'] = res[0]
+        ser_dic['TypeString'] = res[1]
+        ser_dic['TypeFields'] = res[2]
+        ser_dic['cmt'] = res[3]
+        ser_dic['fieldcmts'] = res[4]
+        ser_dic['sclass'] = pickle.loads(res[5].encode("ascii").decode("base64"))
+        ser_dic['parsedList'] = pickle.loads(res[6].encode("ascii").decode("base64"))
+        ser_dic['depends'] = pickle.loads(res[7].encode("ascii").decode("base64"))
+        ser_dic['depends_ordinals'] = pickle.loads(res[8].encode("ascii").decode("base64"))
+        return ser_dic
+
+    def putToStorage(self,t):
+        ser_dic = t.to_dict()
+        try:
+            self.request("INSERT INTO %s VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"%(self.project_name),(ser_dic['name'],ser_dic['TypeString'],ser_dic['TypeFields'],ser_dic['cmt'],ser_dic['fieldcmts'],pickle.dumps(ser_dic["sclass"]).encode("base64"),pickle.dumps(ser_dic["parsedList"]).encode("base64"),pickle.dumps(ser_dic["depends"]).encode("base64"),pickle.dumps(ser_dic["depends_ordinals"]).encode("base64")))
+        except:
+            Warning("Exception on sqlite putToStorage")
+
+    def getFromStorage(self,name):
+        res = []
+        try:
+            res = self.request("SELECT * FROM %s WHERE name=?"%(self.project_name),(name,))
+            if len(res) == 0:
+                return None
+            elif len(res) > 1:
+                raise NameError("getFromStorage: Type duplication or error. Count = %d" % len(res))
+            else:
+                return LocalType().from_dict(self.to_dict(res[0]))
+        except:
+            Warning("Exception on sqlite getFromStorage")
             return None
 
+    def isExist(self,name):
+        res = self.request("SELECT * FROM %s WHERE name=?"%(self.project_name), (name,))
+        if len(res) == 0:
+            return False
+        elif len(res) == 1:
+            return True
         else:
-            c_free_til(til)
-            raise NameError("DuplicateResolver.__init__(): Deserialize error")
+            raise NameError("isExist: Type duplication or error. Count = %d" % (len(res)))
 
 
+    def updateType(self,name,t):
+        ser_dic = t.to_dict()
+        #try:
+        self.request("UPDATE %s SET name = ?, TypeString = ?, TypeFields = ?, cmt = ?, fieldcmts = ?, sclass = ?, parsedList = ?, depends = ?, depends_ordinals = ? WHERE name = ?"%(self.project_name), (ser_dic['name'], ser_dic['TypeString'], ser_dic['TypeFields'], ser_dic['cmt'],
+                                                                            ser_dic['fieldcmts'], pickle.dumps(ser_dic["sclass"]).encode("base64"),
+                                                                            pickle.dumps(ser_dic["parsedList"]).encode("base64"), pickle.dumps(ser_dic["depends"]).encode("base64"),
+                                                                            pickle.dumps(ser_dic["depends_ordinals"]).encode("base64"),name))
+        return True
+        #except:
+            #Warning("Exception on sqlite updateType")
+            #return False
 
 
 class Storage(object):
@@ -1103,6 +1408,9 @@ class Storage(object):
 
     def clearStorage(self):
         self.collection.drop()
+
+    def close_storage(self):
+        self.client.close()
 
     def checkEquality(self,t):
         ser_dic = t.to_dict()
@@ -1169,6 +1477,9 @@ class Storage(object):
             types.append(self.getFromStorage(name))
         return types
 
+    def deleteProject(self,name):
+        self.db[name].drop()
+
 class LocalType(object):
     def __init__(self, name = "", TypeString = "", TypeFields = "",cmt = "", fieldcmts = "", sclass = 0, parsedList = [], depends = []):
         self.TypeString = TypeString
@@ -1179,6 +1490,7 @@ class LocalType(object):
         self.name = name
         self.parsedList = []
         self.depends = []
+        self.depends_ordinals = []
 
         self.parsedList = self.ParseTypeString(TypeString)
 
@@ -1237,6 +1549,7 @@ class LocalType(object):
                     output.append({"local_type": t})
                     if t not in self.depends:
                         self.depends.append(t)
+                        self.depends_ordinals.append(ordinal)
                     continue
                 unwritten_bytes.append(ordinal_length)
                 unwritten_bytes.append(number_marker)
@@ -1255,6 +1568,7 @@ class LocalType(object):
         ser_dic['sclass'] = self.sclass
         ser_dic['parsedList'] = self.parsedList
         ser_dic['depends'] = self.depends
+        ser_dic['depends_ordinals'] = self.depends_ordinals
         return ser_dic
 
     def from_dict(self,ser_dic):
@@ -1266,8 +1580,21 @@ class LocalType(object):
         self.sclass = int(ser_dic['sclass'])
         self.parsedList = ser_dic['parsedList']
         self.depends = ser_dic['depends']
+        self.depends_ordinals = ser_dic['depends_ordinals']
         self.sclass = ctypes.c_ulong(self.sclass)
         return self
+
+    def print_type(self):
+        ret = idc_print_type(self.TypeString,self.TypeFields,self.name,PRTYPE_MULTI|PRTYPE_TYPE).strip()
+        i = 0
+        for o in self.depends_ordinals:
+            ret.replace("#"+str(o),self.depends[i])
+            i += 1
+        return ret
+
+    def isEqual(self,t):
+        return self.print_type() == t.print_type()
+
 
 class IDATypeStorage(plugin_t):
 
@@ -1278,7 +1605,6 @@ class IDATypeStorage(plugin_t):
     wanted_hotkey = ""
 
     def init(self):
-
         # Only Intel x86/x86-64 are supported
         print "Enter IDATypeStorage.init()"
         global type_string_parser
@@ -1305,8 +1631,10 @@ class IDATypeStorage(plugin_t):
 
     def term(self):
         global type_string_parser
-        if type_string_parser in globals() and type_string_parser is not None:
-            type_string_parser.storage.Close()
+        if 'type_string_parser' in globals() and type_string_parser is not None:
+            if type_string_parser.storage is not None:
+                type_string_parser.storage.close_storage()
+                type_string_parser.storage = None
             del type_string_parser
 
 def PLUGIN_ENTRY():

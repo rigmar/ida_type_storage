@@ -249,7 +249,9 @@ class Storage(object):
 client = MongoClient('localhost', 27017)
 db = client['test_db']
 print db.collection_names(include_system_collections=False)
-collection = db['test-coll']
+db['test-coll'].drop()
+print db.collection_names(include_system_collections=False)
+collection = db['test-coll2']
 f = open("F:\IdaTextTypesParser\cache.dat","rb")
 LocalTypeMap = pickle.load(f)
 f.close()

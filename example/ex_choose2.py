@@ -55,17 +55,20 @@ class MyChoose2(Choose2):
         Warning("[%02d] selectline '%s'" % (self.selcount, n))
 
     def OnGetLine(self, n):
-        print("getline %d" % n)
+        # print("getline %d" % n)
         return self.items[n]
 
     def OnGetSize(self):
         n = len(self.items)
-        print("getsize -> %d" % n)
+        # print("getsize -> %d" % n)
         return n
 
     def OnDeleteLine(self, n):
-        print("del %d " % n)
-        del self.items[n]
+
+        if n > 0:
+            print("del %d " % n)
+            print self.items[n]
+            del self.items[n]
         return n
 
     def OnCommand(self, n, cmd_id):
@@ -75,13 +78,13 @@ class MyChoose2(Choose2):
         return 0    
     
     def OnRefresh(self, n):
-        print("refresh %d" % n)
+        # print("refresh %d" % n)
         return n
 
     def OnGetIcon(self, n):
         r = self.items[n]
         t = self.icon + r[1].count("*")
-        print "geticon", n, t
+        # print "geticon", n, t
         return t
 
     def show(self):
@@ -93,7 +96,7 @@ class MyChoose2(Choose2):
         return r
 
     def OnGetLineAttr(self, n):
-        print("getlineattr %d" % n)
+        # print("getlineattr %d" % n)
         if n == 1:
             return [0xFF0000, 0]
             

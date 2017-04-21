@@ -22,6 +22,8 @@ def ExtractSpecs(data):
         data = temp[1].strip(" \n;")
     return specs, data
 
+
+
 import re
 str2 = '''ATL::CStringT<wchar_t,StrTraitMFC<wchar_t,ATL::ChTraitsCRT<wchar_t> > >'''
 #str2 = '''CMap<ATL::CStringT<wchar_t,StrTraitMFC<wchar_t,ATL::ChTraitsCRT<wchar_t> > >,wchar_t const *,ATL::CStringT<wchar_t,StrTraitMFC<wchar_t,ATL::ChTraitsCRT<wchar_t> > >,wchar_t const *>::CPair'''
@@ -46,10 +48,39 @@ def getline():
 # while getline() != "":
     # print "ok"
 
-# p = re.compile(r'\w*(<.*>)\w*')
-# tok =  p.findall(str2)
+p = re.compile(r'\w*(<.*>)\w*')
+tok =  p.findall(str2)
+print tok
+print tok[0].strip("<>").rstrip("<>")
+
+def SplitSTL(Stl_str):
+    ch_op = 0
+    ch_cl = 0
+    start_pos = 0
+    end_pos = 0
+    fin = []
+    i = 0
+    for ch in Stl_str:
+        if ch == "<":
+            if ch_op == 0:
+                start_pos = i
+            ch_op += 1
+        elif ch == ">":
+            ch_cl += 1
+        if ch_op == ch_cl and ch_op != 0:
+            end_pos = i
+            print Stl_str[start_pos:end_pos]
+        i += 1
+
+for name in type_names:
+
+# SplitSTL(tok[0].strip("<>").rstrip("<>"))
+
+# while len(tok):
+#     print tok
+#     tok = p.findall(tok[0].strip("<>").rstrip("<>"))
 # print tok
-# print p.findall(tok[0])
+# print p.findall(tok[0].strip("<>"))
 # print tok[0][1:tok[0].find(",")]
 # str2 = str2.replace(tok[0],"")
 # print str2
@@ -77,10 +108,16 @@ f = '''struct
  unsigned __int16 e_res2[10];
  int e_lfanew;
 }'''
+# p = re.compile(r'\w*(<.*>)\w*')
+# tok =  p.findall(str2)
+# print tok
+# while len(tok) > 0:
 
-r =  f.split("\n",1)
-f = r[0] + " " + name + "\n" + r[1]
-print f
+
+
+# r =  f.split("\n",1)
+# f = r[0] + " " + name + "\n" + r[1]
+# print f
 #print ExtractSpecs(str2)
 
 # class TypeStructureMember(object):

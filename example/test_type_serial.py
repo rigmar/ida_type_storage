@@ -154,17 +154,17 @@ my_ti = idaapi.cvar.idati
 
 
 ITSP = IdaTypeStringParser()
-t = ITSP.ImportLocalType(71)
+t = ITSP.ImportLocalType(51)
 tif = tinfo_t()
-print t.fieldcmts
-print t.cmt
+#print t.fieldcmts
+#print t.cmt
 print tif.deserialize(idaapi.cvar.idati,t.TypeString,t.TypeFields,t.cmt)
-print tif
+#print tif
 name = ""
-print tif.get_type_name(name)
-print name
+#print tif.get_type_name()
+#print name
 print tif._print(None,idaapi.PRTYPE_MULTI)
-
+exit()
 tif2 = ctypes.c_ulong()
 tif3 = ctypes.c_ulong()
 print "-------------------------------------------------------------------------------------------------------------------------------------------------"
