@@ -179,9 +179,6 @@ r = idc_print_type(t.TypeString,t.TypeFields,t.name,PRTYPE_MULTI|PRTYPE_TYPE).st
 # ret.ptr = r[0] + " " + t.name + "\n" + r[1]
 til = new_til("temp_til","temp")
 print "New till success"
-name = qtype()
-name.cur_size = 0
-name.max_size = 0
 if len(r) != 0 and r[-1] != ';':
         r = r + ';'
 print r

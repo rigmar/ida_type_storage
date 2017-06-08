@@ -69,8 +69,8 @@ elif sys.platform == "darwin":
 
 wrapperTypeString = '\x0d\x01\x01'
 
-class qtype(Structure):
-    _fields_ = [("ptr",ctypes.c_char_p),("cur_size",ctypes.c_int),("max_size",ctypes.c_int)]
+# class qtype(Structure):
+#     _fields_ = [("ptr",ctypes.c_char_p),("cur_size",ctypes.c_int),("max_size",ctypes.c_int)]
 
 
 ############################################################
@@ -82,14 +82,14 @@ c_free_til.argtypes = [
     c_void_p
 ]
 
-c_serialize_tinfo = g_dll.serialize_tinfo
-c_serialize_tinfo.argtypes = [
-    ctypes.POINTER(qtype),              #qtype *type
-    ctypes.POINTER(qtype),              #qtype *fields
-    ctypes.POINTER(qtype),              #qtype *fldcmts
-    ctypes.POINTER(ctypes.c_ulong),     #const tinfo_t *tif
-    ctypes.c_int                        #int sudt_flags
-]
+# c_serialize_tinfo = g_dll.serialize_tinfo
+# c_serialize_tinfo.argtypes = [
+#     ctypes.POINTER(qtype),              #qtype *type
+#     ctypes.POINTER(qtype),              #qtype *fields
+#     ctypes.POINTER(qtype),              #qtype *fldcmts
+#     ctypes.POINTER(ctypes.c_ulong),     #const tinfo_t *tif
+#     ctypes.c_int                        #int sudt_flags
+# ]
 
 c_new_til = g_dll.new_til
 c_new_til.argtyped = [
@@ -98,14 +98,14 @@ c_new_til.argtyped = [
 ]
 c_new_til.restype = c_void_p
 
-c_parse_decl2 = g_dll.parse_decl2
-parse_decl2.argtypes = [
-    c_void_p,                           #param til          type library to use
-    c_char_p,                           #param decl         C declaration to parse
-    ctypes.POINTER(qtype),              #param[out] name    declared name
-    ctypes.POINTER(ctypes.c_ulong),     #param[out] tif     type info
-    ctypes.c_int                        #param flags        combination of \ref PT_
-]
+# c_parse_decl2 = g_dll.parse_decl2
+# parse_decl2.argtypes = [
+#     c_void_p,                           #param til          type library to use
+#     c_char_p,                           #param decl         C declaration to parse
+#     ctypes.POINTER(qtype),              #param[out] name    declared name
+#     ctypes.POINTER(ctypes.c_ulong),     #param[out] tif     type info
+#     ctypes.c_int                        #param flags        combination of \ref PT_
+# ]
 
 c_deserialize_tinfo = g_dll.deserialize_tinfo
 c_deserialize_tinfo.argtypes = [
@@ -116,17 +116,17 @@ c_deserialize_tinfo.argtypes = [
     ctypes.POINTER(ctypes.c_char_p)     #const p_list **pfldcmts
 ]
 
-c_print_tinfo = g_dll.print_tinfo
-c_print_tinfo.argtypes = [
-    ctypes.POINTER(qtype),              #qstring *result
-    ctypes.c_char_p,                    #const char *prefix
-    ctypes.c_int,                       #int indent
-    ctypes.c_int,                       #int cmtindent
-    ctypes.c_int,                       #int flags
-    ctypes.POINTER(ctypes.c_ulong),     #const tinfo_t *tif
-    ctypes.c_char_p,                    #const char *name
-    ctypes.c_char_p                     #const char *cmt
-]
+# c_print_tinfo = g_dll.print_tinfo
+# c_print_tinfo.argtypes = [
+#     ctypes.POINTER(qtype),              #qstring *result
+#     ctypes.c_char_p,                    #const char *prefix
+#     ctypes.c_int,                       #int indent
+#     ctypes.c_int,                       #int cmtindent
+#     ctypes.c_int,                       #int flags
+#     ctypes.POINTER(ctypes.c_ulong),     #const tinfo_t *tif
+#     ctypes.c_char_p,                    #const char *name
+#     ctypes.c_char_p                     #const char *cmt
+# ]
 
 get_named_type = g_dll.get_named_type
 get_named_type.argtypes = [
@@ -211,12 +211,7 @@ You can edit structure and use appropriate button to save the edited type
 """
 
 def find_ida_dir():
-    name = "idaq.exe"
-    for p in sys.path:
-        if "ida" in p.lower():
-            for root, dirs, files in os.walk(p):
-                if name in files:
-                    return root
+    return GetIdaDirectory()
 
 class DuplicateResolverForm(Form):
     """Simple Form to test multilinetext and combo box controls"""
@@ -417,7 +412,7 @@ class TypeChooseForm(Form):
         self.Compile()
         self.rResDep.checked = True
         ok = self.Execute()
-        print "Ok = %d"%ok
+        #print "Ok = %d"%ok
         if ok == 1:
             sel = self.EChooser.selected
             #print sel
@@ -737,7 +732,7 @@ class IdaTypeStringParser:
             f = ConnectToSQLBase(self.storageAddr)
             r = f.Go()
             f.Free()
-            print r
+            #print r
             if r != None:
                 #try:
                 self.storageAddr = r
@@ -756,7 +751,7 @@ class IdaTypeStringParser:
             f = ConnectToBase(self.storageAddr)
             r = f.Go()
             f.Free()
-            print r
+            #print r
             if r != None:
                 serverIP, port = r
                 port = int(port)
@@ -842,7 +837,7 @@ class IdaTypeStringParser:
                 return
 
         sel_list = self.ChooseTypesFromStorage()
-        print sel_list
+        #print sel_list
         if sel_list is not None and len(sel_list) > 0:
             fromStorage = self.getFromStorage(sel_list)
             if self.fResDep:
@@ -880,7 +875,7 @@ class IdaTypeStringParser:
         for i in range(1, GetMaxLocalType()):
         # for i in range(12114, 12115):
             name = GetLocalTypeName(i)
-            print "Ordinal = %d; Type name = %s"%(i,name)
+            #print "Ordinal = %d; Type name = %s"%(i,name)
             if name != None:
                 typ_type = ctypes.c_char_p()
                 typ_fields = ctypes.c_char_p()
@@ -914,7 +909,7 @@ class IdaTypeStringParser:
                 self.LocalTypeMap[name] = t
                 continue
             self.FreeOrdinals.append(i)
-        print len(self.LocalTypeMap)
+        #print len(self.LocalTypeMap)
         # f = open("F:\IdaTextTypesParser\cache.dat","wb")
         # pickle.dump(self.LocalTypeMap,f)
         # f.close()
@@ -947,25 +942,27 @@ class IdaTypeStringParser:
     def InsertType(self,type_obj,fReplace = False):
         global my_ti
         my_ti = idaapi.cvar.idati
-        print "InsertType:",type(type_obj.name), type_obj.name
+        #print "InsertType:",type(type_obj.name), type_obj.name
         # print "InsertType: idx = %d"%self.getTypeOrdinal(type_obj.name.encode("ascii"))
         # print "InsertType: idx = %d"%self.get_type_ordinal(my_ti,type_obj.name.encode("ascii"))
         if self.getTypeOrdinal(type_obj.name.encode("ascii")) != 0:
-            print "InsertType: getTypeOrdinal"
+            #print "InsertType: getTypeOrdinal"
             idx = self.getTypeOrdinal(type_obj.name.encode("ascii"))
             t = self.ImportLocalType(idx)
+            if (t.TypeFields is None or t.TypeFields == "") and t.is_sue():
+                fReplace = True
             if t.isEqual(type_obj) or type_obj.TypeString == wrapperTypeString:
                 return 1
             if not fReplace:
                 type_obj = self.DuplicateResolver(t,type_obj,False)
         elif len(self.FreeOrdinals) > 0:
-            print "InsertType: FreeOrdinals.pop"
+            #print "InsertType: FreeOrdinals.pop"
             idx = self.FreeOrdinals.pop(0)
         else:
-            print "InsertType: alloc_type_ordinals"
+            #print "InsertType: alloc_type_ordinals"
             idx = alloc_type_ordinals(my_ti,1)
-        print "InsertType: type_obj.parsedList = ", type_obj.parsedList
-        print "InsertType: idx = %d"%idx
+        #print "InsertType: type_obj.parsedList = ", type_obj.parsedList
+        #print "InsertType: idx = %d"%idx
         typ_type = ctypes.c_char_p(type_obj.GetTypeString())
         # if len(type_obj.TypeFields) == 0:
         #     typ_fields = 0
@@ -979,7 +976,7 @@ class IdaTypeStringParser:
         #     typ_fieldcmts = 0
         # else:
         typ_fieldcmts = ctypes.c_char_p(type_obj.fieldcmts)
-        print type_obj.print_type()
+        #print type_obj.print_type()
         if type(type_obj.sclass) == int:
             type_obj.sclass = ctypes.c_ulong(type_obj.sclass)
         ret = 1
@@ -995,7 +992,7 @@ class IdaTypeStringParser:
             ctypes.byref(type_obj.sclass)
         )
 
-        print "InsertType: ret = %d"%ret
+        #print "InsertType: ret = %d"%ret
         if ret != 1:
             print "bad"
         return ret
@@ -1047,7 +1044,7 @@ class IdaTypeStringParser:
                     if not tp.isEqual(t1):
                         self.storage.updateType(t1.name,t1)
                         #self.cachedStorage[t1.name] = t1
-                        print "Edited type updated"
+                        #print "Edited type updated"
                     # raise NameError("saveToStorage: Duplicated type name (%s) with differ body"%t.name)
                     else:
                         print "Edited type don't have changes"
@@ -1071,7 +1068,7 @@ class IdaTypeStringParser:
     def resolveDependencies(self,startList):
         toResolve = []
         toResolveNames = []
-        print "resolveDependencies: startList", startList
+        #print "resolveDependencies: startList", startList
         prev_len = -1
         while len(toResolve) != prev_len:
             prev_len = len(toResolve)
@@ -1086,7 +1083,7 @@ class IdaTypeStringParser:
 
             startList = toResolve
         sortedList = []
-        print "resolveDependencies: toResolveNames", toResolve
+        #print "resolveDependencies: toResolveNames", toResolve
         toResolveNames = toResolve
         toResolve = self.getFromStorage(toResolve)
         prev_len = len(toResolve)
@@ -1133,7 +1130,7 @@ class IdaTypeStringParser:
     def resolveDependenciesForExport(self,startList):
         toResolve = []
         toResolveNames = []
-        print "resolveDependenciesForExport: startList", startList
+        #print "resolveDependenciesForExport: startList", startList
         prev_len = -1
         while len(toResolve) != prev_len:
             prev_len = len(toResolve)
@@ -1147,7 +1144,7 @@ class IdaTypeStringParser:
                     toResolve.append(t.name)
             startList = toResolve
         sortedList = []
-        print "resolveDependenciesForExport: toResolveNames", toResolve
+        #print "resolveDependenciesForExport: toResolveNames", toResolve
         toResolveNames = toResolve
         toResolve = self.getFromLocalTypesMap(toResolve)
         prev_len = len(toResolve)
@@ -1210,7 +1207,7 @@ class IdaTypeStringParser:
     def allTypeFromStorage(self):
         fromStorage = self.getAllTypesFromStorage()
         sorted_list = self.resolveDependencies(fromStorage)
-        print sorted_list
+        #print sorted_list
         for t in sorted_list:
             self.InsertType(t)
 
@@ -1254,7 +1251,7 @@ class IdaTypeStringParser:
         text2 = t2.print_type()
         f = DuplicateResolverForm(fToStorage)
         sel = f.Go(text1,text2)
-        print sel
+        #print sel
         if len(sel) != 0:
             if sel == text1:
                 c_free_til(til)
@@ -1263,9 +1260,9 @@ class IdaTypeStringParser:
                 c_free_til(til)
                 return t2
             else:
-                name = qtype()
-                name.cur_size = 0
-                name.max_size = 0
+                # name = qtype()
+                # name.cur_size = 0
+                # name.max_size = 0
                 sel = sel.split('\n',1)
                 if sel[-1] != ';':
                     sel = sel + ';'
@@ -1379,15 +1376,15 @@ class Storage_sqlite(object):
 
     def updateType(self,name,t):
         ser_dic = t.to_dict()
-        #try:
-        self.request("UPDATE %s SET name = ?, TypeString = ?, TypeFields = ?, cmt = ?, fieldcmts = ?, sclass = ?, parsedList = ?, depends = ?, depends_ordinals = ? WHERE name = ?"%(self.project_name), (ser_dic['name'], ser_dic['TypeString'], ser_dic['TypeFields'], ser_dic['cmt'],
-                                                                            ser_dic['fieldcmts'], pickle.dumps(ser_dic["sclass"]).encode("base64"),
-                                                                            pickle.dumps(ser_dic["parsedList"]).encode("base64"), pickle.dumps(ser_dic["depends"]).encode("base64"),
-                                                                            pickle.dumps(ser_dic["depends_ordinals"]).encode("base64"),name))
-        return True
-        #except:
-            #Warning("Exception on sqlite updateType")
-            #return False
+        try:
+            self.request("UPDATE %s SET name = ?, TypeString = ?, TypeFields = ?, cmt = ?, fieldcmts = ?, sclass = ?, parsedList = ?, depends = ?, depends_ordinals = ? WHERE name = ?"%(self.project_name), (ser_dic['name'], ser_dic['TypeString'], ser_dic['TypeFields'], ser_dic['cmt'],
+                                                                                ser_dic['fieldcmts'], pickle.dumps(ser_dic["sclass"]).encode("base64"),
+                                                                                pickle.dumps(ser_dic["parsedList"]).encode("base64"), pickle.dumps(ser_dic["depends"]).encode("base64"),
+                                                                                pickle.dumps(ser_dic["depends_ordinals"]).encode("base64"),name))
+            return True
+        except:
+            Warning("Exception on sqlite updateType")
+            return False
 
 
 class Storage(object):
@@ -1511,14 +1508,14 @@ class LocalType(object):
 
     def GetTypeString(self):
         ti = idaapi.cvar.idati
-        print "GetTypeString: name %s"%self.name
+        #print "GetTypeString: name %s"%self.name
         the_bytes = []
         for thing in self.parsedList:
             if type(thing) == int:  # if it's a byte, just put it back in
                 the_bytes.append(thing)
             else:
                 the_bytes.append(ord("="))  # a type starts with =
-                print type(thing["local_type"]),thing["local_type"]
+                #print type(thing["local_type"]),thing["local_type"]
                 ordinal = get_type_ordinal(ti,thing["local_type"].encode("ascii"))  # get the ordinal of the Local Type based on its name
                 if ordinal > 0:
                     the_bytes = the_bytes + encode_ordinal_to_string(ordinal)
@@ -1588,12 +1585,26 @@ class LocalType(object):
         ret = idc_print_type(self.TypeString,self.TypeFields,self.name,PRTYPE_MULTI|PRTYPE_TYPE).strip()
         i = 0
         for o in self.depends_ordinals:
-            ret.replace("#"+str(o),self.depends[i])
+            name = GetLocalTypeName(o)
+            if name is None:
+                ret = ret.replace("#"+str(o),self.depends[i])
+            else:
+                ret = ret.replace(name,self.depends[i])
             i += 1
         return ret
 
     def isEqual(self,t):
         return self.print_type() == t.print_type()
+
+    def is_complex(self):
+        return ord(self.TypeString[0]) & TYPE_BASE_MASK == BT_COMPLEX
+
+    def is_typedef(self):
+        return ord(self.TypeString[0])&TYPE_FULL_MASK == BTF_TYPEDEF
+
+    def is_sue(self):
+        return self.is_complex() and not self.is_typedef()
+
 
 
 class IDATypeStorage(plugin_t):
@@ -1606,12 +1617,12 @@ class IDATypeStorage(plugin_t):
 
     def init(self):
         # Only Intel x86/x86-64 are supported
-        print "Enter IDATypeStorage.init()"
+        #print "Enter IDATypeStorage.init()"
         global type_string_parser
         #type_string_parser = None
 
         # Check if already initialized
-        print not 'type_string_parser' in globals()
+        #print not 'type_string_parser' in globals()
         if not 'type_string_parser' in globals():
 
             type_string_parser = IdaTypeStringParser()

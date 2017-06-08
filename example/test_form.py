@@ -79,7 +79,7 @@ Create struct
 
 """, {
             'cStrArg':Form.StringInput(),
-            'numSize':Form.NumericInput(tp=Form.FT_RAWHEX),
+            'numSize':Form.StringInput(swidth=10),
             'numFieldSize':Form.DropdownListControl(
                         items=["1", "2", "4", "8"],
                         readonly=False,
@@ -89,15 +89,15 @@ Create struct
 
     def Go(self):
         self.Compile()
-        f.ckAlign.checked = True
-        #f.numFieldSize.value = 4
+        self.ckAlign.checked = True
+        self.numSize.value = "0"
         ok = self.Execute()
         #print "Ok = %d"%ok
         if ok == 1:
             sel = self.selected
             #print sel
             #print len(sel)
-            print "Name = %s, size = %d, field size = %d, isAligh = %s"%(f.cStrArg.value,f.numSize.value,int(f.numFieldSize.value),"True" if f.ckAlign.checked else "False")
+            print "Name = %s, size = %d, field size = %d, isAligh = %s"%(self.cStrArg.value,self.numSize.value,int(self.numFieldSize.value),"True" if self.ckAlign.checked else "False")
 
             return sel
         return ""
@@ -140,7 +140,7 @@ You can edit structure and use appropriate button to save the edited type
 
     def Go(self,text1='aaaa',text2='dddd'):
         self.Compile()
-        self.txtMultiLineText.text = text1
+        self.txtMultiLineText.text = COLSTR(text1,SCOLOR_ERROR)
         self.txtMultiLineText2.text = text2
         ok = self.Execute()
         #print "Ok = %d"%ok
@@ -194,7 +194,7 @@ def test_multilinetext(execute=True):
 
 #test_multilinetext()
 
-f = MyForm2()
+f = MyForm4()
 # print f.Go("aaaaaaaaa",'bbbbbbbbbb')
 f.Go()
 # f = MyForm3()

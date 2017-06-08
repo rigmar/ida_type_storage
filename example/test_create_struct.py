@@ -58,7 +58,7 @@ def decode_size(size_str):
     return (l,b1>>3)
 
 def make_type_string(field_num,field_size,pad = 0):
-    ret = "\x0d" + encode_size(field_num)
+    ret = "\x0d" + encode_size(field_num + pad)
     if field_size == 1:
         t = "\x32"
     elif field_size == 2:
