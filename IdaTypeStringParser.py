@@ -5,6 +5,7 @@ import idc
 import ctypes
 import pickle
 import os, sys
+import struct
 
 fSQL = True
 if fSQL:
@@ -806,17 +807,17 @@ class IdaTypeStringParser:
         for act in self.actions:
             act.unregisterAction()
 
-    def doPushAll(self,ctx):
+    def doPushAll(self):
         if fDebug ==True:
             pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
         self.Initialise()
-        sorted_list = self.resolveDependenciesForExport(self.LocalTypeMap.values())
-        self.saveToStorage(sorted_list,True)
+        #sorted_list = self.resolveDependenciesForExport(self.LocalTypeMap.values())
+        self.saveToStorage(self.LocalTypeMap.values(), True)
 
-    def doPullAll(self,ctx):
+    def doPullAll(self):
         if fDebug ==True:
             pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
@@ -1320,7 +1321,7 @@ class Storage_sqlite(object):
         return self.modify_ret(self.request("SELECT name FROM %s"%(self.project_name)))
 
     def isProjectExist(self,name=""):
-        return  True if len(self.request("SELECT name FROM sqlite_master WHERE type='table' AND name=?;",(name if name == "" else self.project_name,))) == 1 else False
+        return  True if len(self.request("SELECT name FROM sqlite_master WHERE type='table' AND name=?;",(self.project_name if name == "" else name,))) == 1 else False
 
     def deleteProject(self,name = ""):
         if name == "":
@@ -1582,8 +1583,11 @@ class LocalType(object):
         return self
 
     def print_type(self):
-        ret = idc_print_type(self.TypeString,self.TypeFields,self.name,PRTYPE_MULTI|PRTYPE_TYPE).strip()
+        ret = idc_print_type(self.TypeString,self.TypeFields,self.name,PRTYPE_MULTI|PRTYPE_TYPE)
+        if ret is None:
+            return ""
         i = 0
+        ret = ret.strip()
         for o in self.depends_ordinals:
             name = GetLocalTypeName(o)
             if name is None:
@@ -1604,6 +1608,13 @@ class LocalType(object):
 
     def is_sue(self):
         return self.is_complex() and not self.is_typedef()
+
+    def is_paf(self):
+        t = ord(self.TypeString[0])&TYPE_BASE_MASK
+        return (t >= BT_PTR )&(t <= BT_FUNC)
+
+    def is_func(self):
+        return ord(self.TypeString[0])&TYPE_BASE_MASK == BT_FUNC
 
 
 
