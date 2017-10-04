@@ -7,6 +7,8 @@ import pickle
 import os, sys
 import struct
 
+from ida_type_storage.forms import DublicateResolverUI
+
 fSQL = True
 if fSQL:
     import sqlite3
@@ -177,6 +179,11 @@ set_numbered_type.argtypes = [
     ctypes.c_char_p,     #const char *cmt=NULL,
     ctypes.c_char_p,     #const p_list *fldcmts=NULL,
     ctypes.POINTER(ctypes.c_ulong),                     #const sclass_t *sclass=NULL
+]
+
+compact_numbered_types = g_dll.compact_numbered_types
+compact_numbered_types.argtypes = [
+    ctypes.c_void_p,
 ]
 
 my_til = ctypes.c_void_p.in_dll(g_dll, 'idati')
@@ -703,7 +710,7 @@ def encode_ordinal(ordinal):
         stemp = stemp + struct.pack("B",enc.pop(-1))
     return stemp
 
-class IdaTypeStringParser:
+class IdaTypeStorage:
 
     def __init__(self):
         self.LocalTypeMap = {}
@@ -871,6 +878,7 @@ class IdaTypeStringParser:
     def Initialise(self):
         global my_til
         my_ti = idaapi.cvar.idati
+        compact_numbered_types(my_til)
         self.LocalTypeMap = {}
         self.FreeOrdinals = []
         for i in range(1, GetMaxLocalType()):
@@ -1230,54 +1238,18 @@ class IdaTypeStringParser:
 
 
     def DuplicateResolver(self,t1,t2,fToStorage = False):
-        # tif1 = ctypes.c_ulong()
-        # tif2 = ctypes.c_ulong()
-        # text1 = ""
-        # text2 = ""
-        til = c_new_til("temp_til","temp")
-        # if c_deserialize_tinfo(byref(tif1),til,ctypes.c_char_p(t1.TypeString),ctypes.c_char_p(t1.TypeFields),ctypes.c_char_p(t1.fieldcmts)) == 1 and \
-        # c_deserialize_tinfo(byref(tif2),til,ctypes.c_char_p(t2.TypeString),ctypes.c_char_p(t2.TypeFields),ctypes.c_char_p(t2.fieldcmts)) == 1:
-        #     ret = qtype()
-        #     ret.cur_size = 0
-        #     ret.max_size = 0
-        #     c_print_tinfo(byref(ret),ctypes.c_char_p(),0,0,idaapi.PRTYPE_MULTI|PRTYPE_TYPE,byref(tif1),ctypes.c_char_p(t1.name),ctypes.c_char_p())
-            # text1 = ret.ptr
-            #text1 = idc_print_type(t1.TypeString,t1.TypeFields,t1.name,PRTYPE_MULTI|PRTYPE_TYPE).strip()
-        text1 = t1.print_type()
-            # ret = qtype()
-            # ret.cur_size = 0
-            # ret.max_size = 0
-            # c_print_tinfo(byref(ret),ctypes.c_char_p(),0,0,idaapi.PRTYPE_MULTI|PRTYPE_TYPE,byref(tif2),ctypes.c_char_p(t2.name),ctypes.c_char_p())
-            # # text2 = idc_print_type(t2.TypeString,t2.TypeFields,t2.name,PRTYPE_MULTI|PRTYPE_TYPE).strip()
-        text2 = t2.print_type()
-        f = DuplicateResolverForm(fToStorage)
-        sel = f.Go(text1,text2)
-        #print sel
-        if len(sel) != 0:
-            if sel == text1:
-                c_free_til(til)
+        f = DublicateResolverUI(t1, t2, fToStorage)
+        while True:
+            f.Go()
+            if f.sel == 1:
                 return t1
-            elif sel == text2:
-                c_free_til(til)
+            elif f.sel == 2:
                 return t2
             else:
-                # name = qtype()
-                # name.cur_size = 0
-                # name.max_size = 0
-                sel = sel.split('\n',1)
-                if sel[-1] != ';':
-                    sel = sel + ';'
-                r = idc_parse_decl(til,sel,PT_TYP)
+                r = idc.ParseType(f.selText, 0x008E)
                 if r is not None:
-                    name, type_str, fields_str = r
-                    return LocalType(name,type_str,fields_str)
-                else:
-                    raise NameError("DuplicateResolver: bad parse edited type")
-        return None
-        #
-        # else:
-        #     c_free_til(til)
-        #     raise NameError("DuplicateResolver.__init__(): Deserialize error")
+                    return LocalType(r[0], r[1], r[2])
+
 
 class Storage_sqlite(object):
 
@@ -1583,19 +1555,13 @@ class LocalType(object):
         return self
 
     def print_type(self):
-        ret = idc_print_type(self.TypeString,self.TypeFields,self.name,PRTYPE_MULTI|PRTYPE_TYPE)
+        ret = idaapi.idc_print_type(self.GetTypeString(),self.TypeFields,self.name,idaapi.PRTYPE_MULTI|idaapi.PRTYPE_TYPE)
         if ret is None:
             return ""
         i = 0
         ret = ret.strip()
-        for o in self.depends_ordinals:
-            name = GetLocalTypeName(o)
-            if name is None:
-                ret = ret.replace("#"+str(o),self.depends[i])
-            else:
-                ret = ret.replace(name,self.depends[i])
-            i += 1
         return ret
+
 
     def isEqual(self,t):
         return self.print_type() == t.print_type()
@@ -1618,7 +1584,7 @@ class LocalType(object):
 
 
 
-class IDATypeStorage(plugin_t):
+class IDATypeStoragePlugin(plugin_t):
 
     flags = idaapi.PLUGIN_FIX
     comment = "Single repository for types."
@@ -1636,7 +1602,7 @@ class IDATypeStorage(plugin_t):
         #print not 'type_string_parser' in globals()
         if not 'type_string_parser' in globals():
 
-            type_string_parser = IdaTypeStringParser()
+            type_string_parser = IdaTypeStorage()
             if type_string_parser.add_menu_items():
                 print "Failed to initialize IDA Type Storage."
                 type_string_parser.del_menu_items()
@@ -1660,7 +1626,7 @@ class IDATypeStorage(plugin_t):
             del type_string_parser
 
 def PLUGIN_ENTRY():
-    return IDATypeStorage()
+    return IDATypeStoragePlugin()
 
 def manualTypeCopy(dest, destOff, destLen, src):
     '''Copies an IDA type 'string' to the given location'''
@@ -1706,7 +1672,7 @@ def manualTypeCopy(dest, destOff, destLen, src):
 # print ''
 # f.write("\n")
 # f.close()
-#ITSP = IdaTypeStringParser()
+#ITSP = IdaTypeStorage()
 #ITSP.storage.clearStorage()
 #ITSP.allTypeToStorage()
 #ITSP.allTypeFromStorage()

@@ -1,4 +1,5 @@
 from idaapi import *
+import idaapi
 from idc import *
 import idc
 import os, sys
@@ -8,6 +9,62 @@ def find_ida_dir():
         for root, dirs, files in os.walk(p):
             if name in files:
                 return root
+
+class ConfigFeaturesChooser(idaapi.Choose2):
+
+    def __init__(self,items,obj):
+        self.obj = obj
+        idaapi.Choose2.__init__(self,"Features",[["Feature name",40],["Status",10]],embedded=True,width=100)
+        self.n = 0
+        self.items = []
+        self.make_items(items)
+
+    def make_items(self,items):
+        for name, status in items:
+            self.items.append([name,"Enabled" if status else "Disabled"])
+
+    def OnClose(self):
+        pass
+
+    def OnGetLine(self, n):
+        return self.items[n]
+
+    def OnGetSize(self):
+        n = len(self.items)
+        return n
+
+    def OnSelectLine(self, n):
+        name, status = self.items.pop(n)
+        self.items.insert(n,[name,"Enabled" if status == "Disabled" else "Disabled"])
+        self.obj.RefreshField(self.obj.cEChooser)
+
+    def GetItems(self):
+        ret = []
+        for name, status in self.items:
+            ret.append((name,True if status == "Enabled" else False))
+        return ret
+
+class ConfigForm(Form):
+
+    def __init__(self, feats):
+        self.EChooser = ConfigFeaturesChooser(feats,self)
+        Form.__init__(self,
+r"""HexRaysPyTools features config
+Double click for switch feature.
+
+<Embedded chooser:{cEChooser}>
+""", {'cEChooser' : Form.EmbeddedChooserControl(self.EChooser)})
+
+    def Go(self):
+        self.Compile()
+        ok = self.Execute()
+        #print "Ok = %d"%ok
+        if ok == 1:
+            #print sel
+            #print len(sel)
+            return self.EChooser.GetItems()
+        return
+
 
 class MyForm3(Form):
     """Simple Form to test multilinetext and combo box controls"""
@@ -194,9 +251,9 @@ def test_multilinetext(execute=True):
 
 #test_multilinetext()
 
-f = MyForm4()
+f = ConfigForm((["AAAAA",True],["BBBBBB",False],["FFFFFF",True]))
 # print f.Go("aaaaaaaaa",'bbbbbbbbbb')
-f.Go()
+print f.Go()
 # f = MyForm3()
 # f, args = f.Compile()
 # ok = f.Execute()

@@ -24,6 +24,31 @@ def ExtractSpecs(data):
 
 
 
+
+class AA(object):
+    def __init__(self):
+        self.l = [1,2,3,4,5,6,7,8]
+        self.g = []
+
+    def GetL(self):
+        return self.l
+
+    def PutToG(self,l,f):
+        self.g.append(l*f)
+
+    def Do(self):
+        print map(lambda x:self.PutToG(x,10),self.GetL())
+        print self.g
+
+
+def test(func):
+    print func
+    func()
+
+test(AA().Do)
+
+exit(0)
+
 import re
 str2 = '''ATL::CStringT<wchar_t,StrTraitMFC<wchar_t,ATL::ChTraitsCRT<wchar_t> > >'''
 #str2 = '''CMap<ATL::CStringT<wchar_t,StrTraitMFC<wchar_t,ATL::ChTraitsCRT<wchar_t> > >,wchar_t const *,ATL::CStringT<wchar_t,StrTraitMFC<wchar_t,ATL::ChTraitsCRT<wchar_t> > >,wchar_t const *>::CPair'''
@@ -72,7 +97,7 @@ def SplitSTL(Stl_str):
             print Stl_str[start_pos:end_pos]
         i += 1
 
-for name in type_names:
+#for name in type_names:
 
 # SplitSTL(tok[0].strip("<>").rstrip("<>"))
 
