@@ -7,6 +7,7 @@ import pickle
 import os, sys
 import struct
 
+#from ida_type_storage.forms import DublicateResolverUI
 from ida_type_storage.forms import DublicateResolverUI
 
 fSQL = True
@@ -16,9 +17,9 @@ else:
     from pymongo import *
     from bson import *
 
-fDebug = False
-if fDebug:
-    import pydevd
+# fDebug = False
+# if fDebug:
+#     import pydevd
 
 class ActionWrapper(idaapi.action_handler_t):
     def __init__(self, id, name, shortcut, menuPath, callback, args = None):
@@ -181,10 +182,13 @@ set_numbered_type.argtypes = [
     ctypes.POINTER(ctypes.c_ulong),                     #const sclass_t *sclass=NULL
 ]
 
-compact_numbered_types = g_dll.compact_numbered_types
-compact_numbered_types.argtypes = [
-    ctypes.c_void_p,
-]
+# compact_numbered_types = g_dll.compact_numbered_types
+# compact_numbered_types.argtypes = [
+#     ctypes.c_void_p,
+#     ctypes.c_int,
+#     ctypes.c_void_p,
+#     ctypes.c_int,
+# ]
 
 my_til = ctypes.c_void_p.in_dll(g_dll, 'idati')
 my_ti = idaapi.cvar.idati
@@ -815,8 +819,8 @@ class IdaTypeStorage:
             act.unregisterAction()
 
     def doPushAll(self):
-        if fDebug ==True:
-            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        # if fDebug ==True:
+        #     pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
@@ -825,8 +829,8 @@ class IdaTypeStorage:
         self.saveToStorage(self.LocalTypeMap.values(), True)
 
     def doPullAll(self):
-        if fDebug ==True:
-            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        # if fDebug ==True:
+        #     pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
@@ -838,8 +842,8 @@ class IdaTypeStorage:
 
     def doImportTypes(self,ctx):
         self.fResDep = True
-        if fDebug ==True:
-            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        # if fDebug ==True:
+        #     pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
@@ -859,8 +863,8 @@ class IdaTypeStorage:
 
     def doExportTypes(self,ctx):
         self.fResDep = True
-        if fDebug == True:
-            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        # if fDebug == True:
+        #     pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
@@ -878,7 +882,7 @@ class IdaTypeStorage:
     def Initialise(self):
         global my_til
         my_ti = idaapi.cvar.idati
-        compact_numbered_types(my_til)
+        # compact_numbered_types(my_til)
         self.LocalTypeMap = {}
         self.FreeOrdinals = []
         for i in range(1, GetMaxLocalType()):
@@ -917,7 +921,7 @@ class IdaTypeStorage:
                 t = LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass)
                 self.LocalTypeMap[name] = t
                 continue
-            self.FreeOrdinals.append(i)
+            #self.FreeOrdinals.append(i)
         #print len(self.LocalTypeMap)
         # f = open("F:\IdaTextTypesParser\cache.dat","wb")
         # pickle.dump(self.LocalTypeMap,f)
@@ -1256,13 +1260,16 @@ class Storage_sqlite(object):
     def __init__(self,db_name,project_name = ""):
         self.db_name = db_name
         self.project_name = project_name
-        if self.project_name != "" and not self.isProjectExist(self.project_name):
-            self.request("CREATE TABLE %s (name text, TypeString text, TypeFields text, cmt text, fieldcmts text, sclass text, parsedList text, depends text, depends_ordinals text)"%(self.project_name))
+        if self.project_name != "" and not self.isTableExist(self.project_name):
+            self.request(r"CREATE TABLE '%s' (name text, TypeString text, TypeFields text, cmt text, fieldcmts text, sclass text, parsedList text, depends text, depends_ordinals text)"%(self.project_name))
+
+    def isTableExist(self,name):
+        return  True if len(self.request(r"SELECT name FROM sqlite_master WHERE type='table' AND name=?;",(name,))) == 1 else False
 
     def connect(self,project_name):
         self.project_name = project_name
-        if self.project_name != "" and not self.isProjectExist(self.project_name):
-            self.request("CREATE TABLE %s (name text, TypeString text, TypeFields text, cmt text, fieldcmts text, sclass text, parsedList text, depends text, depends_ordinals text)"%(self.project_name))
+        if self.project_name != "" and not self.isTableExist(self.project_name):
+            self.request(r"CREATE TABLE '%s' (name text, TypeString text, TypeFields text, cmt text, fieldcmts text, sclass text, parsedList text, depends text, depends_ordinals text)"%(self.project_name))
 
     def request(self,req_str,vals = ()):
         if type(vals) != tuple:
@@ -1284,21 +1291,25 @@ class Storage_sqlite(object):
             for el in res:
                 ret.append(el[0].encode("ascii"))
             return ret
+        elif len(res) == 1 and len(res[0]) > 1:
+            ret = []
+            for el in res[0]:
+                ret.append(el.encode("ascii"))
+            return ret
         return res
 
     def GetAllProjects(self):
-        return self.modify_ret(self.request("SELECT name FROM sqlite_master WHERE type='table'"))
+        return self.modify_ret(self.request(r"SELECT name FROM sqlite_master WHERE type='table'"))
 
     def GetAllNames(self):
-        return self.modify_ret(self.request("SELECT name FROM %s"%(self.project_name)))
+        return self.modify_ret(self.request(r"SELECT name FROM %s"%self.project_name))
 
-    def isProjectExist(self,name=""):
-        return  True if len(self.request("SELECT name FROM sqlite_master WHERE type='table' AND name=?;",(self.project_name if name == "" else name,))) == 1 else False
 
     def deleteProject(self,name = ""):
         if name == "":
             name = self.project_name
-        self.request("drop table %s"%(name))
+        self.request(r"drop table '%s'"%(name))
+        self.project_name = ""
 
     def close_storage(self):
         pass
@@ -1319,14 +1330,14 @@ class Storage_sqlite(object):
     def putToStorage(self,t):
         ser_dic = t.to_dict()
         try:
-            self.request("INSERT INTO %s VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"%(self.project_name),(ser_dic['name'],ser_dic['TypeString'],ser_dic['TypeFields'],ser_dic['cmt'],ser_dic['fieldcmts'],pickle.dumps(ser_dic["sclass"]).encode("base64"),pickle.dumps(ser_dic["parsedList"]).encode("base64"),pickle.dumps(ser_dic["depends"]).encode("base64"),pickle.dumps(ser_dic["depends_ordinals"]).encode("base64")))
+            self.request(r"INSERT INTO '%s' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"%(self.project_name),(ser_dic['name'],ser_dic['TypeString'],ser_dic['TypeFields'],ser_dic['cmt'],ser_dic['fieldcmts'],pickle.dumps(ser_dic["sclass"]).encode("base64"),pickle.dumps(ser_dic["parsedList"]).encode("base64"),pickle.dumps(ser_dic["depends"]).encode("base64"),pickle.dumps(ser_dic["depends_ordinals"]).encode("base64")))
         except:
             Warning("Exception on sqlite putToStorage")
 
     def getFromStorage(self,name):
         res = []
         try:
-            res = self.request("SELECT * FROM %s WHERE name=?"%(self.project_name),(name,))
+            res = self.request(r"SELECT * FROM '%s' WHERE name=?"%(self.project_name),(name,))
             if len(res) == 0:
                 return None
             elif len(res) > 1:
@@ -1338,7 +1349,7 @@ class Storage_sqlite(object):
             return None
 
     def isExist(self,name):
-        res = self.request("SELECT * FROM %s WHERE name=?"%(self.project_name), (name,))
+        res = self.request(r"SELECT * FROM '%s' WHERE name=?"%(self.project_name), (name,))
         if len(res) == 0:
             return False
         elif len(res) == 1:
@@ -1350,7 +1361,7 @@ class Storage_sqlite(object):
     def updateType(self,name,t):
         ser_dic = t.to_dict()
         try:
-            self.request("UPDATE %s SET name = ?, TypeString = ?, TypeFields = ?, cmt = ?, fieldcmts = ?, sclass = ?, parsedList = ?, depends = ?, depends_ordinals = ? WHERE name = ?"%(self.project_name), (ser_dic['name'], ser_dic['TypeString'], ser_dic['TypeFields'], ser_dic['cmt'],
+            self.request(r"UPDATE '%s' SET name = ?, TypeString = ?, TypeFields = ?, cmt = ?, fieldcmts = ?, sclass = ?, parsedList = ?, depends = ?, depends_ordinals = ? WHERE name = ?"%(self.project_name), (ser_dic['name'], ser_dic['TypeString'], ser_dic['TypeFields'], ser_dic['cmt'],
                                                                                 ser_dic['fieldcmts'], pickle.dumps(ser_dic["sclass"]).encode("base64"),
                                                                                 pickle.dumps(ser_dic["parsedList"]).encode("base64"), pickle.dumps(ser_dic["depends"]).encode("base64"),
                                                                                 pickle.dumps(ser_dic["depends_ordinals"]).encode("base64"),name))
