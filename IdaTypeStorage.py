@@ -158,8 +158,8 @@ print_type_to_one_line.argtypes = [
 ]
 
 ############################################################
-get_numbered_type = g_dll.get_numbered_type
-get_numbered_type.argtypes = [
+c_get_numbered_type = g_dll.get_numbered_type
+c_get_numbered_type.argtypes = [
     ctypes.c_void_p,                                    #const til_t *ti,
     ctypes.c_int,                                       #uint32 ordinal,
     ctypes.POINTER(ctypes.c_char_p),     #const type_t **type=NULL,
@@ -169,8 +169,8 @@ get_numbered_type.argtypes = [
     ctypes.POINTER(ctypes.c_ulong),                     #sclass_t *sclass=NULL
 ]
 
-set_numbered_type = g_dll.set_numbered_type
-set_numbered_type.argtypes = [
+c_set_numbered_type = g_dll.set_numbered_type
+c_set_numbered_type.argtypes = [
     ctypes.c_void_p,                                    #til_t *ti,
     ctypes.c_int,                                       #uint32 ordinal,
     ctypes.c_int,                                       #int ntf_flags,
@@ -895,7 +895,7 @@ class IdaTypeStorage:
                 typ_cmt = ctypes.c_char_p()
                 typ_fieldcmts = ctypes.c_char_p()
                 typ_sclass = ctypes.c_ulong()
-                ret = get_numbered_type(
+                ret = c_get_numbered_type(
                     my_til,
                     i,
                     ctypes.byref(typ_type),
@@ -936,7 +936,7 @@ class IdaTypeStorage:
             typ_cmt = ctypes.c_char_p()
             typ_fieldcmts = ctypes.c_char_p()
             typ_sclass = ctypes.c_ulong()
-            ret = get_numbered_type(
+            ret = c_get_numbered_type(
                 my_til,
                 idx,
                 ctypes.byref(typ_type),
@@ -993,7 +993,7 @@ class IdaTypeStorage:
         if type(type_obj.sclass) == int:
             type_obj.sclass = ctypes.c_ulong(type_obj.sclass)
         ret = 1
-        ret = set_numbered_type(
+        ret = c_set_numbered_type(
             my_til,
             idx,
             0x4,
