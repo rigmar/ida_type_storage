@@ -1242,7 +1242,7 @@ class IdaTypeStorage:
 
 
     def DuplicateResolver(self,t1,t2,fToStorage = False):
-        f = DublicateResolverUI(t1, t2, fToStorage)
+        f = DublicateResolverUI(t1.print_type(), t2.print_type(), fToStorage)
         while True:
             f.Go()
             if f.sel == 1:
