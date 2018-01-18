@@ -71,8 +71,8 @@ class TestDialog(QDialog):
 
 
     def testOK(self):
-        print "Ok"
-        print self.ui.textEdit_struc1.toPlainText()
+        print ("Ok")
+        print (self.ui.textEdit_struc1.toPlainText())
 
 
 

@@ -130,6 +130,12 @@ The end!
         elif fid == self.cEChooser.id:
             l = self.GetControlValue(self.cEChooser)
             print("Chooser: %s" % l)
+        elif fid == self.rWarnings.id:
+            # l = self.GetControlValue(self.cEChooser)
+            print self.GetControlValue(self.rWarnings)
+            print("CHECK BOX! %s"%("True" if self.GetControlValue(self.rWarnings) else "False"))
+        elif fid == self.cGroup1.id:
+            print "CHK_GROUP", self.GetControlValue(self.cGroup1)
         else:
             print(">>fid:%d" % fid)
         return 1

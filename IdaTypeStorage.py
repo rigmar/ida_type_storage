@@ -6,9 +6,10 @@ import ctypes
 import pickle
 import os, sys
 import struct
+import collections
 
 #from ida_type_storage.forms import DublicateResolverUI
-from ida_type_storage.forms import DublicateResolverUI
+from ida_type_storage.forms import DublicateResolverUI, ConnectToSQLBase, ChooseProject, ConnectToBase, TypeChooseForm
 
 fSQL = True
 if fSQL:
@@ -17,9 +18,9 @@ else:
     from pymongo import *
     from bson import *
 
-# fDebug = False
-# if fDebug:
-#     import pydevd
+fDebug = False
+if fDebug:
+    import pydevd
 
 class ActionWrapper(idaapi.action_handler_t):
     def __init__(self, id, name, shortcut, menuPath, callback, args = None):
@@ -70,6 +71,16 @@ elif sys.platform == "linux2":
     g_dll = ctypes.cdll["lib" + idaname + ".so"]
 elif sys.platform == "darwin":
     g_dll = ctypes.cdll["lib" + idaname + ".dylib"]
+
+
+class til_t(ctypes.Structure):
+    pass
+
+til_t._fields_ = [
+        ("name", ctypes.c_char_p),
+        ("desc", ctypes.c_char_p),
+        ("nbases", ctypes.c_int),
+        ("base", ctypes.POINTER(ctypes.POINTER(til_t)))]
 
 wrapperTypeString = '\x0d\x01\x01'
 
@@ -132,8 +143,8 @@ c_deserialize_tinfo.argtypes = [
 #     ctypes.c_char_p                     #const char *cmt
 # ]
 
-get_named_type = g_dll.get_named_type
-get_named_type.argtypes = [
+c_get_named_type = g_dll.get_named_type
+c_get_named_type.argtypes = [
     ctypes.c_void_p,                                #const til_t *ti,
     ctypes.c_char_p,                                #const char *name,
     ctypes.c_int,                                   #int ntf_flags,
@@ -145,8 +156,8 @@ get_named_type.argtypes = [
     ctypes.POINTER(ctypes.c_ulong),                 #uint32 *value=NULL);
 ]
 
-print_type_to_one_line = g_dll.print_type_to_one_line
-print_type_to_one_line.argtypes = [
+c_print_type_to_one_line = g_dll.print_type_to_one_line
+c_print_type_to_one_line.argtypes = [
     ctypes.c_char_p,                #char  *buf,
     ctypes.c_ulong,                 #size_t bufsize,
     ctypes.c_void_p,                #const til_t *ti,
@@ -202,412 +213,6 @@ def convert_to_string(src):
             break
         ret = ret + struct.pack("B",ch)
     return ret
-
-duplicate_form_text = r"""STARTITEM 0
-Duplicate resolver
-%s
-Detected type duplicate
-You must select a variant
-
-Default rule if pressed "OK" or "Cancel":
-
-Import from storage - Type in IDA will be replaced by type from storage
-Export to storage - Type in storage will be replaced by type from IDA
-
-You can edit structure and use appropriate button to save the edited type
-
-{FormChangeCb}
-<%s:{txtMultiLineText}><##%s:{iButton1}>
-<%s:{txtMultiLineText2}><##%s:{iButton2}>
-
-"""
-
-def find_ida_dir():
-    return GetIdaDirectory()
-
-class DuplicateResolverForm(Form):
-    """Simple Form to test multilinetext and combo box controls"""
-    def __init__(self,fToStorage = False):
-        if fToStorage:
-            form_str = duplicate_form_text%("Export to storage","Type in storage", "Do not change type in storage","Local type in IDA","Replace by type from IDA")
-        else:
-            form_str = duplicate_form_text%("Import from storage","Local type in IDA","Do not change local type","Type in storage","Replace by type from storage")
-        self.selected = ""
-        Form.__init__(self, form_str, {
-            'txtMultiLineText': Form.MultiLineTextControl(text="",width=100),
-            'txtMultiLineText2': Form.MultiLineTextControl(text="",width=100),
-            'FormChangeCb': Form.FormChangeCb(self.OnFormChange),
-            'iButton1': Form.ButtonInput(self.OnButton1),
-            'iButton2': Form.ButtonInput(self.OnButton2),
-        })
-
-    def Go(self,text1,text2):
-        self.Compile()
-        self.txtMultiLineText.text = text1
-        self.txtMultiLineText2.text = text2
-        ok = self.Execute()
-        #print "Ok = %d"%ok
-        sel = self.selected
-        #print sel
-        #print len(sel)
-        return sel
-
-    def OnFormChange(self, fid):
-        #print(">>fid:%d" % fid)
-        if fid == self.txtMultiLineText.id:
-            pass
-        elif fid == -2 or fid == -1:
-            self.selected = self.GetControlValue(self.txtMultiLineText2).text
-            #print "ti.text = %s" % ti.text
-        return 1
-
-    def OnButton1(self, code=0):
-        #print("Button1 pressed")
-        self.selected = self.GetControlValue(self.txtMultiLineText).text
-        self.Close(1)
-
-
-    def OnButton2(self, code=0):
-        #print("Button2 pressed")
-        self.selected = self.GetControlValue(self.txtMultiLineText2).text
-        self.Close(1)
-
-
-class TypeListChooser(Choose2):
-    """
-    A simple chooser to be used as an embedded chooser
-    """
-    def __init__(self, title, type_list, flags=0):
-        Choose2.__init__(self,
-                         title,
-                         [ ["Num", 5], ["Name", 40] ],
-                         embedded=True, width=150, height=40, flags=flags)
-        self.n = 0
-        # self.items = [ self.make_item() for x in xrange(0, nb+1) ]
-        self.items = []
-        self.icon = 5
-        self.selcount = 0
-        self.selected = []
-        self.make_items(type_list)
-
-    def make_items(self,item_list):
-        self.n = 1
-        r = []
-        for name in item_list:
-            r.append([str(self.n), name])
-            self.n += 1
-        self.items = r
-        return r
-
-    def OnClose(self):
-        pass
-
-    def OnGetLine(self, n):
-        #print("getline %d" % n)
-        return self.items[n]
-
-    def OnGetSize(self):
-        n = len(self.items)
-        #print("getsize -> %d" % n)
-        return n
-
-    def OnSelectionChange(self, sel_list):
-        self.selected = []
-        #print sel_list
-        for n in sel_list:
-            self.selected.append(self.items[n-1][1])
-        #print self.selected
-
-class TypeListChooser2(Choose2):
-
-    def __init__(self, title, type_list, flags=Choose2.CH_MULTI):
-        Choose2.__init__(
-            self,
-            title,
-            [ ["Num", 5], ["Name", 30] ],
-            flags = flags)
-        self.n = 0
-        self.items = []
-        self.icon = 0
-        self.selcount = 0
-        #self.modal = modal
-        self.selected = []
-        self.make_items(type_list)
-
-        print("created %s" % str(self))
-
-    def OnClose(self):
-        print "closed", str(self)
-
-    # def OnEditLine(self, n):
-    #     self.items[n][1] = self.items[n][1] + "*"
-    #     print("editing %d" % n)
-
-    # def OnInsertLine(self):
-    #     self.items.append(self.make_item())
-    #     print("insert line")
-
-    # def OnSelectLine(self, n):
-    #     print "selectline"
-    #     if n >= 0:
-    #         self.selected.append(self.items[n][1])
-
-    def OnGetLine(self, n):
-        #print("getline %d" % n)
-        return self.items[n]
-
-    def OnGetSize(self):
-        n = len(self.items)
-        #print("getsize -> %d" % n)
-        return n
-
-    # def OnDeleteLine(self, n):
-    #     print("del %d " % n)
-    #     del self.items[n]
-    #     return n
-
-    def OnRefresh(self, n):
-        print("refresh %d" % n)
-        return n
-
-    # def OnGetIcon(self, n):
-    #     r = self.items[n]
-    #     t = self.icon + r[1].count("*")
-    #     #print "geticon", n, t
-    #     return t
-
-    # def show(self):
-    #     return self.Show(self.modal) >= 0
-
-    def make_items(self,item_list):
-        self.n = 0
-        r = []
-        for name in item_list:
-            r.append([str(self.n), name])
-            self.n += 1
-        self.items = r
-        return r
-
-    # def OnGetLineAttr(self, n):
-    #     #print("getlineattr %d" % n)
-    #     if n == 1:
-    #         return [0xFF0000, 0]
-
-    # def OnSelectionChange(self, sel_list):
-    #     self.selected = []
-    #     #print sel_list
-    #     for n in sel_list:
-    #         self.selected.append(self.items[n-1][1])
-    #     #print sel_list
-
-
-form_text = """%s
-
-<Types for choose:{cEChooser}>
-<##Get all types:{iButtonSyncAll}><Resolve type dependencies:{rResDep}>{cGroup1}>
-"""
-class TypeChooseForm(Form):
-    def __init__(self,title_str,type_list):
-
-        self.EChooser = TypeListChooser("aaa",type_list,flags=Choose2.CH_MULTI)
-        Form.__init__(self,form_text%title_str, {
-                                             'cEChooser' : Form.EmbeddedChooserControl(self.EChooser),
-                                             'iButtonSyncAll': Form.ButtonInput(self.onSyncAllTypes),
-                                             'cGroup1': Form.ChkGroupControl(("rResDep",))
-                                             })
-
-
-
-
-
-    def Go(self):
-        self.Compile()
-        self.rResDep.checked = True
-        ok = self.Execute()
-        #print "Ok = %d"%ok
-        if ok == 1:
-            sel = self.EChooser.selected
-            #print sel
-            #print len(sel)
-            return sel, self.rResDep.checked
-
-    def onSyncAllTypes(self,code=0):
-        self.EChooser.selected = []
-        for i in self.EChooser.items:
-            self.EChooser.selected.append(i[1])
-        self.Close(1)
-
-
-class ProjectChooser(Choose2):
-    """
-    A simple chooser to be used as an embedded chooser
-    """
-    def __init__(self, title, name_list, db = None, flags=0):
-        Choose2.__init__(self,
-                         title,
-                         [ ["Project name", 40] ],
-                         embedded=True, width=40, height=10, flags=flags)
-        self.n = 0
-        # self.items = [ self.make_item() for x in xrange(0, nb+1) ]
-        self.items = []
-        self.icon = 5
-        self.selcount = 0
-        self.selected = []
-        self.make_items(name_list)
-        #print self.items
-        self.db = db
-
-    def make_items(self,item_list):
-        self.n = 1
-        r = []
-        for name in item_list:
-            r.append([name])
-            self.n += 1
-        self.items = r
-        return r
-
-    def OnClose(self):
-        pass
-
-    def OnGetLine(self, n):
-        #print("getline %d" % n)
-        return self.items[n]
-
-    def OnGetSize(self):
-        n = len(self.items)
-        #print("getsize -> %d" % n)
-        return n
-
-    def OnSelectLine(self, n):
-        #print "Selected %d"%n
-        #print self.items[n]
-        self.selected = self.items[n]
-
-    def OnSelectionChange(self, sel_list):
-        self.selected = []
-        for sel in sel_list:
-            self.selected.append(self.items[sel-1][0])
-
-    def OnDeleteLine(self, n):
-        #print("del %d " % n)
-        if n > 0:
-            # print("del %d " % n)
-            # print self.items[n]
-            if fSQL:
-                self.db.deleteProject(self.items[n][0])
-            else:
-                self.db[self.items[n][0]].drop()
-            del self.items[n]
-        return n
-
-
-
-
-    # def OnSelectionChange(self, sel_list):
-    #     self.selected = []
-    #     #print sel_list
-    #     for n in sel_list:
-    #         self.selected.append(self.items[n-1][1])
-    #     #print self.selected
-
-
-class ChooseProject(Form):
-    def __init__(self,coll_list,db = None):
-        self.__n = 0
-        self.selected = None
-        self.EChooser = ProjectChooser("Projects in storage",coll_list, db)
-        self.db = db
-        Form.__init__(self,
-r"""
-Choose project for connect
-
-<Projects in storage:{cEChooser}>   <##Create new project:{iButtonNewProject}><##Delete Project:{iButtonDelProject}>
-""", {
-        'cEChooser' : Form.EmbeddedChooserControl(self.EChooser),
-        'iButtonNewProject': Form.ButtonInput(self.onNewProject),
-        'iButtonDelProject': Form.ButtonInput(self.onDelProject),
-    })
-
-    def Go(self):
-        self.Compile()
-        ok = self.Execute()
-        #print "Ok = %d"%ok
-        if ok == 1:
-            sel = self.EChooser.selected
-            #print sel
-            #print len(sel)
-            return sel[0]
-        return None
-
-    def OnFormChange(self, fid):
-        if fid == -1:
-            self.SetFocusedField(self.EChooser)
-
-    def onNewProject(self,code = 0):
-        s = idc.AskStr("", "Enter new project name:")
-        self.EChooser.selected = [s]
-        self.Close(1)
-
-    def onDelProject(self,code = 0):
-        if len(self.EChooser.selected) > 0:
-            # print self.EChooser.selected
-            for sel in self.EChooser.selected:
-                if fSQL:
-                    self.db.deleteProject(sel)
-                else:
-                    self.db[sel].drop()
-                self.EChooser.items.remove([sel])
-            # print self.EChooser.items
-            # print self.controls
-            self.RefreshField(self.controls['cEChooser'])
-
-
-class ConnectToSQLBase(Form):
-    def __init__(self,addr):
-        self.storage = None
-        self.iBaseFile = None
-
-        Form.__init__(self,r"""
-        Choose path with storage
-
-        <#Hint1#SQLite file path:{iBaseFile}>
-        """, {
-            'iBaseFile':Form.FileInput(open=True,hlp='*.db',value = os.path.join(find_ida_dir(),"TypeStorage.db") if addr is None else addr),
-        })
-
-    def Go(self):
-        self.Compile()
-        ok = self.Execute()
-        print "ConnectToSQLBase: Go: Ok = %d; Base file path = %s"%(ok,self.iBaseFile.value)
-        if ok == 1:
-            return self.iBaseFile.value
-        return None
-
-
-
-class ConnectToBase(Form):
-    def __init__(self,addr):
-        self.storage = None
-        self.iServerIP = None
-        self.iPort = None
-
-        Form.__init__(self,r"""
-        Choose server with storage
-
-        <#Hint1#Server IP:{iServerIP}> : <#Hint1#Server port:{iPort}>
-        """, {
-            'iServerIP':Form.StringInput(value = "127.0.0.1" if addr is None else addr[0]),
-            'iPort':Form.NumericInput(Form.FT_DEC,27017 if addr is None else addr[1]),
-        })
-
-    def Go(self):
-        self.Compile()
-        ok = self.Execute()
-        print "ConnectToBase: Go: Ok = %d; ServerIP = %s; Port = %d"%(ok,self.iServerIP.value,self.iPort.value)
-        if ok == 1:
-            return self.iServerIP.value, self.iPort.value
-        return None
-
 
 
 
@@ -717,6 +322,8 @@ def encode_ordinal(ordinal):
 class IdaTypeStorage:
 
     def __init__(self):
+        self.OrdinalsMap = collections.OrderedDict()
+        self.list_type_library = []
         self.LocalTypeMap = {}
         self.FreeOrdinals = []
         self.storage = None
@@ -731,7 +338,7 @@ class IdaTypeStorage:
         if self.storage is not None:
             self.storage.close_storage()
             self.storage = None
-            print "Disconnected from storage"
+            print ("Disconnected from storage")
         if self.storage is None:
             if not self.ConnectToStorage():
                 return
@@ -859,12 +466,12 @@ class IdaTypeStorage:
 
             for t in sorted_list:
                 self.InsertType(t)
-            print "Imported from storage %d types"%len(sorted_list)
+            print ("Imported from storage %d types"%len(sorted_list))
 
     def doExportTypes(self,ctx):
         self.fResDep = True
-        # if fDebug == True:
-        #     pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        if fDebug == True:
+            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
@@ -876,15 +483,34 @@ class IdaTypeStorage:
             else:
                 sorted_list = sel_list
             self.saveToStorage(sorted_list)
-            print "Exported to storage %d types"%len(sorted_list)
+            print ("Exported to storage %d types"%len(sorted_list))
 
+    def InitTypeLibsList(self):
+        idati = idaapi.cvar.idati
+        self.list_type_library = []
+        for idx in xrange(idaapi.cvar.idati.nbases):
+            type_library = idaapi.cvar.idati.base(idx)  # idaapi.til_t type
+            self.list_type_library.append((type_library, type_library.name, type_library.desc))
+
+    def isStanadardType(self,name):
+
+        for tp in self.list_type_library:
+            if idc.__EA64__:
+                if get_named_type64(tp[0],name,1):
+                    return True
+            else:
+                if get_named_type(tp[0],name,1):
+                    return True
+        return False
 
     def Initialise(self):
         global my_til
         my_ti = idaapi.cvar.idati
+        self.InitTypeLibsList()
         # compact_numbered_types(my_til)
-        self.LocalTypeMap = {}
+        self.LocalTypeMap = collections.OrderedDict()
         self.FreeOrdinals = []
+        self.OrdinalsMap = collections.OrderedDict()
         for i in range(1, GetMaxLocalType()):
         # for i in range(12114, 12115):
             name = GetLocalTypeName(i)
@@ -918,8 +544,9 @@ class IdaTypeStorage:
                 if typ_fieldcmts == None:
                     typ_fieldcmts = ""
                 typ_sclass = typ_sclass.value
-                t = LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass)
+                t = LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass, isStandard=self.isStanadardType(name))
                 self.LocalTypeMap[name] = t
+                #self.OrdinalsMap[name]
                 continue
             #self.FreeOrdinals.append(i)
         #print len(self.LocalTypeMap)
@@ -930,7 +557,7 @@ class IdaTypeStorage:
     def ImportLocalType(self,idx):
         global my_til
         name = GetLocalTypeName(idx)
-        if name != None:
+        if name != None and name not in self.LocalTypeMap:
             typ_type = ctypes.c_char_p()
             typ_fields = ctypes.c_char_p()
             typ_cmt = ctypes.c_char_p()
@@ -949,7 +576,9 @@ class IdaTypeStorage:
             typ_fields = typ_fields.value
             typ_cmt = typ_cmt.value
             typ_fieldcmts = typ_fieldcmts.value
-            return LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass)
+            return LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass, isStandard=self.isStanadardType(name))
+        elif name != None:
+            return self.LocalTypeMap[name]
         return None
 
     def InsertType(self,type_obj,fReplace = False):
@@ -1007,7 +636,7 @@ class IdaTypeStorage:
 
         #print "InsertType: ret = %d"%ret
         if ret != 1:
-            print "bad"
+            print ("bad")
         return ret
 
 
@@ -1019,7 +648,7 @@ class IdaTypeStorage:
     def ChooseLocalTypes(self):
         if len(self.LocalTypeMap) == 0:
             self.Initialise()
-        f = TypeChooseForm("Import types from current IDB",self.LocalTypeMap)
+        f = TypeChooseForm(self.LocalTypeMap,True)
         r = f.Go()
         f.Free()
         if r != None and len(r[0]) != 0:
@@ -1033,7 +662,7 @@ class IdaTypeStorage:
 
 
     def ChooseTypesFromStorage(self):
-        f = TypeChooseForm("Import types from storage",self.storage.GetAllNames())
+        f = TypeChooseForm(self.storage.GetAllNames(),False)
         r = f.Go()
         f.Free()
         if r != None and len(r[0]) != 0:
@@ -1060,7 +689,7 @@ class IdaTypeStorage:
                         #print "Edited type updated"
                     # raise NameError("saveToStorage: Duplicated type name (%s) with differ body"%t.name)
                     else:
-                        print "Edited type don't have changes"
+                        print ("Edited type don't have changes")
                 continue
             self.storage.putToStorage(t)
             #self.cachedStorage[t.name] = t
@@ -1256,22 +885,33 @@ class IdaTypeStorage:
 
 
 class Storage_sqlite(object):
+    actual_cols = ['name', 'TypeString', 'TypeFields', 'cmt', 'fieldcmts', 'sclass', 'parsedList', 'depends',
+                   'depends_ordinals', "flags"]
 
-    def __init__(self,db_name,project_name = ""):
+    def __init__(self, db_name, project_name=""):
         self.db_name = db_name
         self.project_name = project_name
         if self.project_name != "" and not self.isTableExist(self.project_name):
-            self.request(r"CREATE TABLE '%s' (name text, TypeString text, TypeFields text, cmt text, fieldcmts text, sclass text, parsedList text, depends text, depends_ordinals text)"%(self.project_name))
+            self.request(
+                r"CREATE TABLE '%s' (name text, TypeString text, TypeFields text, cmt text, fieldcmts text, sclass text, parsedList text, depends text, depends_ordinals text, flags integer)" % (
+                self.project_name))
+        elif self.project_name != "" and not self.isActual():
+            self.update_table()
 
-    def isTableExist(self,name):
-        return  True if len(self.request(r"SELECT name FROM sqlite_master WHERE type='table' AND name=?;",(name,))) == 1 else False
+    def isTableExist(self, name):
+        return True if len(
+            self.request(r"SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (name,))) == 1 else False
 
-    def connect(self,project_name):
+    def connect(self, project_name):
         self.project_name = project_name
         if self.project_name != "" and not self.isTableExist(self.project_name):
-            self.request(r"CREATE TABLE '%s' (name text, TypeString text, TypeFields text, cmt text, fieldcmts text, sclass text, parsedList text, depends text, depends_ordinals text)"%(self.project_name))
+            self.request(
+                r"CREATE TABLE '%s' (name text, TypeString text, TypeFields text, cmt text, fieldcmts text, sclass text, parsedList text, depends text, depends_ordinals text, flags integer)" % (
+                self.project_name))
+        elif self.project_name != "" and not self.isActual():
+            self.update_table()
 
-    def request(self,req_str,vals = ()):
+    def request(self, req_str, vals=()):
         if type(vals) != tuple:
             vals = (vals,)
         conn = sqlite3.connect(self.db_name)
@@ -1279,43 +919,51 @@ class Storage_sqlite(object):
         if len(vals) == 0:
             res = c.execute(req_str)
         else:
-            res = c.execute(req_str,vals)
+            res = c.execute(req_str, vals)
         res = res.fetchall()
         conn.commit()
         conn.close()
         return res
 
-    def modify_ret(self,res):
+    def modify_ret(self, res):
         if len(res) > 0 and len(res[0]) == 1:
             ret = []
             for el in res:
-                ret.append(el[0].encode("ascii"))
+                if type(el) != int:
+                    ret.append(el[0].encode("ascii"))
             return ret
         elif len(res) == 1 and len(res[0]) > 1:
             ret = []
             for el in res[0]:
-                ret.append(el.encode("ascii"))
+                if type(el) != int:
+                    ret.append(el.encode("ascii"))
             return ret
         return res
 
     def GetAllProjects(self):
         return self.modify_ret(self.request(r"SELECT name FROM sqlite_master WHERE type='table'"))
 
-    def GetAllNames(self):
-        return self.modify_ret(self.request(r"SELECT name FROM %s"%self.project_name))
+    def GetAllNames(self, mask=15, invert=False):
+        if mask&8:
+            return self.modify_ret(self.request(r"SELECT name FROM %s WHERE (flags == 0 OR (flags & %d) != 0)" % (self.project_name, mask&7)))
+        else:
+            return self.modify_ret(self.request(r"SELECT name FROM %s WHERE (flags == 0 OR ((flags & %d) != 0) and "
+                                                r")"))
 
+        if mask&8 == 0:
+            ret = [x for n in self.modify_ret(self.request(r"SELECT name FROM %s WHERE (flags == 0 OR (flags & 8) == 0)" % (self.project_name, mask&7))) if n in ret]
 
-    def deleteProject(self,name = ""):
+    def deleteProject(self, name=""):
         if name == "":
             name = self.project_name
-        self.request(r"drop table '%s'"%(name))
+        self.request(r"drop table '%s'" % (name))
         self.project_name = ""
 
     def close_storage(self):
         pass
 
-    def to_dict(self,res):
-        ser_dic = {}
+    def to_dict(self, res):
+        ser_dic = collections.OrderedDict()
         ser_dic['name'] = res[0]
         ser_dic['TypeString'] = res[1]
         ser_dic['TypeFields'] = res[2]
@@ -1325,19 +973,24 @@ class Storage_sqlite(object):
         ser_dic['parsedList'] = pickle.loads(res[6].encode("ascii").decode("base64"))
         ser_dic['depends'] = pickle.loads(res[7].encode("ascii").decode("base64"))
         ser_dic['depends_ordinals'] = pickle.loads(res[8].encode("ascii").decode("base64"))
+        ser_dic['flags'] = res[9]
         return ser_dic
 
-    def putToStorage(self,t):
+    def putToStorage(self, t):
         ser_dic = t.to_dict()
         try:
-            self.request(r"INSERT INTO '%s' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"%(self.project_name),(ser_dic['name'],ser_dic['TypeString'],ser_dic['TypeFields'],ser_dic['cmt'],ser_dic['fieldcmts'],pickle.dumps(ser_dic["sclass"]).encode("base64"),pickle.dumps(ser_dic["parsedList"]).encode("base64"),pickle.dumps(ser_dic["depends"]).encode("base64"),pickle.dumps(ser_dic["depends_ordinals"]).encode("base64")))
+            self.request(r"INSERT INTO '%s' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" % (self.project_name), (
+            ser_dic['name'], ser_dic['TypeString'], ser_dic['TypeFields'], ser_dic['cmt'], ser_dic['fieldcmts'],
+            pickle.dumps(ser_dic["sclass"]).encode("base64"), pickle.dumps(ser_dic["parsedList"]).encode("base64"),
+            pickle.dumps(ser_dic["depends"]).encode("base64"),
+            pickle.dumps(ser_dic["depends_ordinals"]).encode("base64"),ser_dic['flags']))
         except:
             Warning("Exception on sqlite putToStorage")
 
-    def getFromStorage(self,name):
+    def getFromStorage(self, name):
         res = []
         try:
-            res = self.request(r"SELECT * FROM '%s' WHERE name=?"%(self.project_name),(name,))
+            res = self.request(r"SELECT * FROM '%s' WHERE name=?" % (self.project_name), (name,))
             if len(res) == 0:
                 return None
             elif len(res) > 1:
@@ -1348,8 +1001,8 @@ class Storage_sqlite(object):
             Warning("Exception on sqlite getFromStorage")
             return None
 
-    def isExist(self,name):
-        res = self.request(r"SELECT * FROM '%s' WHERE name=?"%(self.project_name), (name,))
+    def isExist(self, name):
+        res = self.request(r"SELECT * FROM '%s' WHERE name=?" % (self.project_name), (name,))
         if len(res) == 0:
             return False
         elif len(res) == 1:
@@ -1357,18 +1010,46 @@ class Storage_sqlite(object):
         else:
             raise NameError("isExist: Type duplication or error. Count = %d" % (len(res)))
 
-
-    def updateType(self,name,t):
+    def updateType(self, name, t):
         ser_dic = t.to_dict()
         try:
-            self.request(r"UPDATE '%s' SET name = ?, TypeString = ?, TypeFields = ?, cmt = ?, fieldcmts = ?, sclass = ?, parsedList = ?, depends = ?, depends_ordinals = ? WHERE name = ?"%(self.project_name), (ser_dic['name'], ser_dic['TypeString'], ser_dic['TypeFields'], ser_dic['cmt'],
-                                                                                ser_dic['fieldcmts'], pickle.dumps(ser_dic["sclass"]).encode("base64"),
-                                                                                pickle.dumps(ser_dic["parsedList"]).encode("base64"), pickle.dumps(ser_dic["depends"]).encode("base64"),
-                                                                                pickle.dumps(ser_dic["depends_ordinals"]).encode("base64"),name))
+            self.request(
+                r"UPDATE '%s' SET name = ?, TypeString = ?, TypeFields = ?, cmt = ?, fieldcmts = ?, sclass = ?, parsedList = ?, depends = ?, depends_ordinals = ?, flags = ? WHERE name = ?" % (
+                self.project_name), (ser_dic['name'], ser_dic['TypeString'], ser_dic['TypeFields'], ser_dic['cmt'],
+                                     ser_dic['fieldcmts'], pickle.dumps(ser_dic["sclass"]).encode("base64"),
+                                     pickle.dumps(ser_dic["parsedList"]).encode("base64"),
+                                     pickle.dumps(ser_dic["depends"]).encode("base64"),
+                                     pickle.dumps(ser_dic["depends_ordinals"]).encode("base64"), ser_dic["flags"], name))
             return True
         except:
             Warning("Exception on sqlite updateType")
             return False
+
+    def isActual(self):
+        if self.project_name != "":
+            curr_cols = []
+            for inf in self.modify_ret(self.request(r"PRAGMA table_info(%s)" % self.project_name)):
+                curr_cols.append(inf[1].encode("ascii"))
+            return curr_cols == self.actual_cols
+        return True
+
+    def update_table(self):
+        self.request(r"ALTER TABLE %s ADD COLUMN flags INTEGER DEFAULT 0;"%self.project_name)
+        ret = self.request(r"SELECT name,TypeString FROM %s" % self.project_name)
+        for name, ts in ret:
+            flag = 0
+            name = name.encode("ascii")
+            ts = ts.decode("base64")
+            if LocalType.is_su_static(ts):
+                flag = 1
+            elif LocalType.is_enum_static(ts):
+                flag = 2
+            elif LocalType.isnt_sue_static(ts):
+                flag = 4
+            else:
+                raise NameError("Unknown type of LocalType")
+            self.request(r"UPDATE %s SET flags = ? WHERE name = ?"%self.project_name, (flag, name))
+
 
 
 class Storage(object):
@@ -1462,7 +1143,7 @@ class Storage(object):
         self.db[name].drop()
 
 class LocalType(object):
-    def __init__(self, name = "", TypeString = "", TypeFields = "",cmt = "", fieldcmts = "", sclass = 0, parsedList = [], depends = []):
+    def __init__(self, name = "", TypeString = "", TypeFields = "",cmt = "", fieldcmts = "", sclass = 0, parsedList = [], depends = [], isStandard = False):
         self.TypeString = TypeString
         self.TypeFields = TypeFields
         self.cmt = cmt
@@ -1472,8 +1153,16 @@ class LocalType(object):
         self.parsedList = []
         self.depends = []
         self.depends_ordinals = []
+        self.flags = 8 if isStandard else 0
 
         self.parsedList = self.ParseTypeString(TypeString)
+        if self.TypeString != "":
+            if self.is_su():
+                self.flags |= 1
+            elif self.is_enum():
+                self.flags |= 2
+            elif self.isnt_sue():
+                self.flags |= 4
 
     # def __init__(self, idx):
     #     self.name = None
@@ -1540,7 +1229,7 @@ class LocalType(object):
         return output
 
     def to_dict(self):
-        ser_dic = {}
+        ser_dic = collections.OrderedDict()
         ser_dic['name'] = self.name
         ser_dic['TypeString'] = self.TypeString.encode("base64")
         ser_dic['TypeFields'] = self.TypeFields.encode("base64")
@@ -1550,6 +1239,7 @@ class LocalType(object):
         ser_dic['parsedList'] = self.parsedList
         ser_dic['depends'] = self.depends
         ser_dic['depends_ordinals'] = self.depends_ordinals
+        ser_dic['flags'] = self.flags
         return ser_dic
 
     def from_dict(self,ser_dic):
@@ -1563,6 +1253,7 @@ class LocalType(object):
         self.depends = ser_dic['depends']
         self.depends_ordinals = ser_dic['depends_ordinals']
         self.sclass = ctypes.c_ulong(self.sclass)
+        self.flags = ser_dic['flags']
         return self
 
     def print_type(self):
@@ -1573,6 +1264,8 @@ class LocalType(object):
         ret = ret.strip()
         return ret
 
+    def is_standard(self):
+        return self.flags&8 == 8
 
     def isEqual(self,t):
         return self.print_type() == t.print_type()
@@ -1586,12 +1279,70 @@ class LocalType(object):
     def is_sue(self):
         return self.is_complex() and not self.is_typedef()
 
+    def isnt_sue(self):
+        return not self.is_sue()
+
+    def is_su(self):
+        return self.is_complex() and not self.is_typedef() and not self.is_enum()
+
     def is_paf(self):
         t = ord(self.TypeString[0])&TYPE_BASE_MASK
         return (t >= BT_PTR )&(t <= BT_FUNC)
 
     def is_func(self):
         return ord(self.TypeString[0])&TYPE_BASE_MASK == BT_FUNC
+
+    def is_struct(self):
+        return ord(self.TypeString[0])&TYPE_FULL_MASK == BTF_STRUCT
+
+    def is_union(self):
+        return ord(self.TypeString[0])&TYPE_FULL_MASK == BTF_UNION
+
+    def is_enum(self):
+        return ord(self.TypeString[0])&TYPE_FULL_MASK == BTF_ENUM
+
+
+    @staticmethod
+    def is_complex_static(TypeString):
+        return ord(TypeString[0]) & TYPE_BASE_MASK == BT_COMPLEX
+
+    @staticmethod
+    def is_typedef_static(TypeString):
+        return ord(TypeString[0])&TYPE_FULL_MASK == BTF_TYPEDEF
+
+    @staticmethod
+    def is_sue_static(TypeString):
+        return LocalType.is_complex(TypeString) and not LocalType.is_typedef(TypeString)
+
+    @staticmethod
+    def isnt_sue_static(TypeString):
+        return not LocalType.is_sue(TypeString)
+
+    @staticmethod
+    def is_su_static(TypeString):
+        return LocalType.is_complex(TypeString) and not LocalType.is_typedef(TypeString) and not LocalType.is_enum(TypeString)
+
+    @staticmethod
+    def is_paf_static(TypeString):
+        t = ord(TypeString[0])&TYPE_BASE_MASK
+        return (t >= BT_PTR )&(t <= BT_FUNC)
+
+    @staticmethod
+    def is_func_static(TypeString):
+        return ord(TypeString[0])&TYPE_BASE_MASK == BT_FUNC
+
+    @staticmethod
+    def is_struct_static(TypeString):
+        return ord(TypeString[0])&TYPE_FULL_MASK == BTF_STRUCT
+
+    @staticmethod
+    def is_union_static(TypeString):
+        return ord(TypeString[0])&TYPE_FULL_MASK == BTF_UNION
+
+    @staticmethod
+    def is_enum_static(TypeString):
+        return ord(TypeString[0])&TYPE_FULL_MASK == BTF_ENUM
+
 
 
 
@@ -1615,12 +1366,12 @@ class IDATypeStoragePlugin(plugin_t):
 
             type_string_parser = IdaTypeStorage()
             if type_string_parser.add_menu_items():
-                print "Failed to initialize IDA Type Storage."
+                print ("Failed to initialize IDA Type Storage.")
                 type_string_parser.del_menu_items()
                 del type_string_parser
                 return idaapi.PLUGIN_SKIP
             else:
-                print"Initialized IDA Type Storage."
+                print("Initialized IDA Type Storage.")
 
         return idaapi.PLUGIN_KEEP
 

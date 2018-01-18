@@ -3,9 +3,16 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from difflib import *
+import idc
+from idaapi import *
 import idaapi
 qtMode = 3
 from collections import OrderedDict
+
+fSQL = True
+
+def find_ida_dir():
+    return idc.GetIdaDirectory()
 
 
 def format(color, style=''):
@@ -516,8 +523,8 @@ class DublicateResolverUI(QDialog):
                 bl = edit.document().findBlockByNumber(line_num)
                 cr = edit.textCursor()
                 cr.setPosition(bl.position())
-                print ("pos = %d"%bl.position())
-                print ("len = %d"%bl.length())
+                # print ("pos = %d"%bl.position())
+                # print ("len = %d"%bl.length())
                 edit.setTextCursor(cr)
                 hi_selection.cursor = edit.textCursor()
                 hi_selection.cursor.clearSelection()
@@ -579,8 +586,461 @@ class DublicateResolverUI(QDialog):
         result = list(d.compare(s1, s2))
         return result
     def Go(self):
-        #self.setWindowModality(Qt.ApplicationModal)
+        # self.setWindowModality(Qt.ApplicationModal)
+        self.setWindowModality(Qt.WindowModal)
         oldTo = idaapi.set_script_timeout(0)
-        res = self.show()
+        res = self.exec_()
         idaapi.set_script_timeout(oldTo)
         return res
+
+class DuplicateResolverForm(Form):
+    duplicate_form_text = r"""STARTITEM 0
+    Duplicate resolver
+    %s
+    Detected type duplicate
+    You must select a variant
+
+    Default rule if pressed "OK" or "Cancel":
+
+    Import from storage - Type in IDA will be replaced by type from storage
+    Export to storage - Type in storage will be replaced by type from IDA
+
+    You can edit structure and use appropriate button to save the edited type
+
+    {FormChangeCb}
+    <%s:{txtMultiLineText}><##%s:{iButton1}>
+    <%s:{txtMultiLineText2}><##%s:{iButton2}>
+
+    """
+
+    """Simple Form to test multilinetext and combo box controls"""
+    def __init__(self,fToStorage = False):
+        if fToStorage:
+            form_str = DuplicateResolverForm.duplicate_form_text%("Export to storage","Type in storage", "Do not change type in storage","Local type in IDA","Replace by type from IDA")
+        else:
+            form_str = DuplicateResolverForm.duplicate_form_text%("Import from storage","Local type in IDA","Do not change local type","Type in storage","Replace by type from storage")
+        self.selected = ""
+        Form.__init__(self, form_str, {
+            'txtMultiLineText': Form.MultiLineTextControl(text="",width=100),
+            'txtMultiLineText2': Form.MultiLineTextControl(text="",width=100),
+            'FormChangeCb': Form.FormChangeCb(self.OnFormChange),
+            'iButton1': Form.ButtonInput(self.OnButton1),
+            'iButton2': Form.ButtonInput(self.OnButton2),
+        })
+
+    def Go(self,text1,text2):
+        self.Compile()
+        self.txtMultiLineText.text = text1
+        self.txtMultiLineText2.text = text2
+        ok = self.Execute()
+        #print "Ok = %d"%ok
+        sel = self.selected
+        #print sel
+        #print len(sel)
+        return sel
+
+    def OnFormChange(self, fid):
+        #print(">>fid:%d" % fid)
+        if fid == self.txtMultiLineText.id:
+            pass
+        elif fid == -2 or fid == -1:
+            self.selected = self.GetControlValue(self.txtMultiLineText2).text
+            #print "ti.text = %s" % ti.text
+        return 1
+
+    def OnButton1(self, code=0):
+        #print("Button1 pressed")
+        self.selected = self.GetControlValue(self.txtMultiLineText).text
+        self.Close(1)
+
+
+    def OnButton2(self, code=0):
+        #print("Button2 pressed")
+        self.selected = self.GetControlValue(self.txtMultiLineText2).text
+        self.Close(1)
+
+
+class TypeListChooser(Choose2):
+    """
+    A simple chooser to be used as an embedded chooser
+    """
+    def __init__(self, title, type_list, flags=0, obj=None):
+        Choose2.__init__(self,
+                         title,
+                         [ ["Ord", 5], ["Name", 40] ],
+                         embedded=True, width=150, height=40, flags=flags)
+        self.n = 0
+        # self.items = [ self.make_item() for x in xrange(0, nb+1) ]
+        self.items = []
+        self.icon = 5
+        self.selcount = 0
+        self.selected = []
+        self.make_items(type_list)
+        self.obj = obj
+
+    def make_items(self,item_list):
+        self.n = 1
+        r = []
+        for name in item_list:
+            r.append([str(self.n), name])
+            self.n += 1
+        self.items = r
+        return r
+
+    def OnClose(self):
+        pass
+
+
+    def OnGetLine(self, n):
+        #print("getline %d" % n)
+        return self.items[n]
+
+    def OnGetSize(self):
+        n = len(self.items)
+        #print("getsize -> %d" % n)
+        return n
+
+    def OnSelectionChange(self, sel_list):
+        self.selected = []
+        #print sel_list
+        for n in sel_list:
+            self.selected.append(self.items[n-1][1])
+        #print self.selected
+
+class TypeListChooser2(Choose2):
+
+    def __init__(self, title, type_list, flags=Choose2.CH_MULTI):
+        Choose2.__init__(
+            self,
+            title,
+            [ ["Num", 5], ["Name", 30] ],
+            flags = flags)
+        self.n = 0
+        self.items = []
+        self.icon = 0
+        self.selcount = 0
+        #self.modal = modal
+        self.selected = []
+        self.make_items(type_list)
+
+        print("created %s" % str(self))
+
+    def OnClose(self):
+        print ("closed", str(self))
+
+    # def OnEditLine(self, n):
+    #     self.items[n][1] = self.items[n][1] + "*"
+    #     print("editing %d" % n)
+
+    # def OnInsertLine(self):
+    #     self.items.append(self.make_item())
+    #     print("insert line")
+
+    # def OnSelectLine(self, n):
+    #     print "selectline"
+    #     if n >= 0:
+    #         self.selected.append(self.items[n][1])
+
+    def OnGetLine(self, n):
+        #print("getline %d" % n)
+        return self.items[n]
+
+    def OnGetSize(self):
+        n = len(self.items)
+        #print("getsize -> %d" % n)
+        return n
+
+    # def OnDeleteLine(self, n):
+    #     print("del %d " % n)
+    #     del self.items[n]
+    #     return n
+
+    def OnRefresh(self, n):
+        print("refresh %d" % n)
+        return n
+
+    # def OnGetIcon(self, n):
+    #     r = self.items[n]
+    #     t = self.icon + r[1].count("*")
+    #     #print "geticon", n, t
+    #     return t
+
+    # def show(self):
+    #     return self.Show(self.modal) >= 0
+
+    def make_items(self,item_list):
+        self.n = 0
+        r = []
+        for name in item_list:
+            r.append([str(self.n), name])
+            self.n += 1
+        self.items = r
+        return r
+
+    # def OnGetLineAttr(self, n):
+    #     #print("getlineattr %d" % n)
+    #     if n == 1:
+    #         return [0xFF0000, 0]
+
+    # def OnSelectionChange(self, sel_list):
+    #     self.selected = []
+    #     #print sel_list
+    #     for n in sel_list:
+    #         self.selected.append(self.items[n-1][1])
+    #     #print sel_list
+
+
+
+class TypeChooseForm(Form):
+    form_text_fromIDB = """Import types from current IDB
+    {FormChangeCb}
+    <Types for choose:{cEChooser}>
+    <##Get all types:{iButtonSyncAll}>      <Structure:{rStruct}><Enums:{rEnums}><Typedefs:{rTypedefs}>{cFilters}>
+    <Resolve type dependencies:{rResDep}>
+    <Show types from starndard typelibs:{rStndTypes}>{cGroup1}>
+    """
+    form_text_fromStorage = """Import types from storage
+    <Types for choose:{cEChooser}>
+    <##Get all types:{iButtonSyncAll}><Resolve type dependencies:{rResDep}>{cGroup1}>
+    """
+
+    def __init__(self,type_list, fFromIDB=True, db=None):
+
+        self.EChooser = TypeListChooser("Types:",type_list,flags=Choose2.CH_MULTI)
+        self.typeList = type_list
+        self.curTypes = type_list if type(type_list) == list else type_list.keys()
+        self.fFromIDB = fFromIDB
+        self.db = db
+        if self.fFromIDB:
+            Form.__init__(self,TypeChooseForm.form_text_fromIDB, {
+                 'cEChooser' : Form.EmbeddedChooserControl(self.EChooser),
+                 'iButtonSyncAll': Form.ButtonInput(self.onSyncAllTypes),
+                 'FormChangeCb': Form.FormChangeCb(self.OnFormChange),
+                 'cGroup1': Form.ChkGroupControl(("rResDep","rStndTypes")),
+                 'cFilters': Form.ChkGroupControl(("rStruct","rEnums", "rTypedefs"))
+            })
+        else:
+            Form.__init__(self, TypeChooseForm.form_text_fromStorage, {
+                'cEChooser': Form.EmbeddedChooserControl(self.EChooser),
+                'iButtonSyncAll': Form.ButtonInput(self.onSyncAllTypes),
+                'cGroup1': Form.ChkGroupControl(("rResDep", ))
+            })
+
+    def Go(self):
+        self.Compile()
+        self.rResDep.checked = True
+        if self.fFromIDB:
+            self.rStndTypes.checked = True
+            self.cFilters.value = 7
+        # print map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)),x],self.typeList.keys())
+        if self.fFromIDB:
+            self.EChooser.items = map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)),x],self.typeList.keys())
+        ok = self.Execute()
+        #print "Ok = %d"%ok
+        if ok == 1:
+            sel = self.EChooser.selected
+            #print sel
+            #print len(sel)
+            return sel, self.rResDep.checked
+
+    def onSyncAllTypes(self,code=0):
+        self.EChooser.selected = []
+        for i in self.EChooser.items:
+            self.EChooser.selected.append(i[1])
+        self.Close(1)
+
+    def OnFormChange(self, fid):
+        if fid == self.rStndTypes.id:
+            if self.fFromIDB:
+                if self.GetControlValue(self.rStndTypes):
+                    self.curTypes = self.typeList.keys()
+                else:
+                    self.curTypes = []
+                    for t in self.typeList.values():
+                        if not t.is_standard():
+                            self.curTypes.append(t.name)
+                self.EChooser.items = map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)), x], self.curTypes)
+                    # self.EChooser.make_items(["AAAA","BBBBB","FFFFFF"])
+                    # self.EChooser.Embedded()
+                self.RefreshField(self.controls["cEChooser"])
+
+        if fid == self.cFilters.id:
+            val = self.GetControlValue(self.cFilters)
+            filtered = filter(lambda x: ((val&1 and (self.typeList[x].is_struct()or self.typeList[x].is_union())) or (val&2 and self.typeList[x].is_enum()) or (val&4 and not self.typeList[x].is_sue())),self.curTypes)
+            self.EChooser.items = map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)), x], filtered)
+            self.RefreshField(self.controls["cEChooser"])
+
+        return 1
+
+
+class ProjectChooser(Choose2):
+    """
+    A simple chooser to be used as an embedded chooser
+    """
+    def __init__(self, title, name_list, db = None, flags=0, obj = None):
+        Choose2.__init__(self,
+                         title,
+                         [ ["Project name", 40] ],
+                         embedded=True, width=40, height=10, flags=flags)
+        self.n = 0
+        # self.items = [ self.make_item() for x in xrange(0, nb+1) ]
+        self.items = []
+        self.icon = 5
+        self.selcount = 0
+        self.selected = []
+        self.make_items(name_list)
+        #print self.items
+        self.db = db
+        self.obj = obj
+
+    def make_items(self,item_list):
+        self.n = 1
+        r = []
+        for name in item_list:
+            r.append([name])
+            self.n += 1
+        self.items = r
+        return r
+
+    def OnClose(self):
+        pass
+
+    def OnGetLine(self, n):
+        #print("getline %d" % n)
+        return self.items[n]
+
+    def OnGetSize(self):
+        n = len(self.items)
+        #print("getsize -> %d" % n)
+        return n
+
+    def OnSelectLine(self, n):
+        #print "Selected %d"%n
+        #print self.items[n]
+        self.selected = self.items[n]
+        self.obj.Close(1)
+
+    def OnSelectionChange(self, sel_list):
+        self.selected = []
+        for sel in sel_list:
+            self.selected.append(self.items[sel-1][0])
+
+    def OnDeleteLine(self, n):
+        #print("del %d " % n)
+        if n > 0:
+            # print("del %d " % n)
+            # print self.items[n]
+            if fSQL:
+                self.db.deleteProject(self.items[n][0])
+            else:
+                self.db[self.items[n][0]].drop()
+            del self.items[n]
+        return n
+
+
+
+
+    # def OnSelectionChange(self, sel_list):
+    #     self.selected = []
+    #     #print sel_list
+    #     for n in sel_list:
+    #         self.selected.append(self.items[n-1][1])
+    #     #print self.selected
+
+
+class ChooseProject(Form):
+    def __init__(self,coll_list,db = None):
+        self.__n = 0
+        self.selected = None
+        self.EChooser = ProjectChooser("Projects in storage",coll_list, db, obj = self)
+        self.db = db
+        Form.__init__(self,
+r"""
+Choose project for connect
+
+<Projects in storage:{cEChooser}>   <##Create new project:{iButtonNewProject}><##Delete Project:{iButtonDelProject}>
+""", {
+        'cEChooser' : Form.EmbeddedChooserControl(self.EChooser),
+        'iButtonNewProject': Form.ButtonInput(self.onNewProject),
+        'iButtonDelProject': Form.ButtonInput(self.onDelProject),
+    })
+
+    def Go(self):
+        self.Compile()
+        ok = self.Execute()
+        #print "Ok = %d"%ok
+        if ok == 1:
+            sel = self.EChooser.selected
+            #print sel
+            #print len(sel)
+            return sel[0]
+        return None
+
+    def OnFormChange(self, fid):
+        if fid == -1:
+            self.SetFocusedField(self.EChooser)
+
+    def onNewProject(self,code = 0):
+        s = idc.AskStr("", "Enter new project name:")
+        self.EChooser.selected = [s]
+        self.Close(1)
+
+    def onDelProject(self,code = 0):
+        if len(self.EChooser.selected) > 0:
+            # print self.EChooser.selected
+            for sel in self.EChooser.selected:
+                if fSQL:
+                    self.db.deleteProject(sel)
+                else:
+                    self.db[sel].drop()
+                self.EChooser.items.remove([sel])
+            # print self.EChooser.items
+            # print self.controls
+            self.RefreshField(self.controls['cEChooser'])
+
+
+class ConnectToSQLBase(Form):
+    def __init__(self,addr):
+        self.storage = None
+        self.iBaseFile = None
+
+        Form.__init__(self,r"""
+        Choose path with storage
+
+        <#Hint1#SQLite file path:{iBaseFile}>
+        """, {
+            'iBaseFile':Form.FileInput(open=True,hlp='*.db',value = os.path.join(find_ida_dir(),"TypeStorage.db") if addr is None else addr),
+        })
+
+    def Go(self):
+        self.Compile()
+        ok = self.Execute()
+        print ("ConnectToSQLBase: Go: Ok = %d; Base file path = %s"%(ok,self.iBaseFile.value))
+        if ok == 1:
+            return self.iBaseFile.value
+        return None
+
+
+
+class ConnectToBase(Form):
+    def __init__(self,addr):
+        self.storage = None
+        self.iServerIP = None
+        self.iPort = None
+
+        Form.__init__(self,r"""
+        Choose server with storage
+
+        <#Hint1#Server IP:{iServerIP}> : <#Hint1#Server port:{iPort}>
+        """, {
+            'iServerIP':Form.StringInput(value = "127.0.0.1" if addr is None else addr[0]),
+            'iPort':Form.NumericInput(Form.FT_DEC,27017 if addr is None else addr[1]),
+        })
+
+    def Go(self):
+        self.Compile()
+        ok = self.Execute()
+        print ("ConnectToBase: Go: Ok = %d; ServerIP = %s; Port = %d"%(ok,self.iServerIP.value,self.iPort.value))
+        if ok == 1:
+            return self.iServerIP.value, self.iPort.value
+        return None
