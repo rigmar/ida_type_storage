@@ -2,7 +2,7 @@ from idaapi import *
 from idc import *
 import idaapi
 import idc
-import ctypes
+from ctypes import *
 import pickle
 import os, sys
 import struct
@@ -66,7 +66,7 @@ class ActionWrapper(idaapi.action_handler_t):
 # so have to do things with ctypes
 idaname = "ida64" if idc.__EA64__ else "ida"
 if sys.platform == "win32":
-    g_dll = ctypes.windll[idaname + ".wll"]
+    g_dll = ctypes.windll[idaname + ".wll"] if ida_pro.IDA_SDK_VERSION < 700 else ctypes.windll[idaname + ".dll"]
 elif sys.platform == "linux2":
     g_dll = ctypes.cdll["lib" + idaname + ".so"]
 elif sys.platform == "darwin":
@@ -143,30 +143,30 @@ c_deserialize_tinfo.argtypes = [
 #     ctypes.c_char_p                     #const char *cmt
 # ]
 
-c_get_named_type = g_dll.get_named_type
-c_get_named_type.argtypes = [
-    ctypes.c_void_p,                                #const til_t *ti,
-    ctypes.c_char_p,                                #const char *name,
-    ctypes.c_int,                                   #int ntf_flags,
-    ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte)), #const type_t **type=NULL,
-    ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte)), #const p_list **fields=NULL,
-    ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte)), #const char **cmt=NULL,
-    ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte)), #const p_list **fieldcmts=NULL,
-    ctypes.POINTER(ctypes.c_ulong),                 #sclass_t *sclass=NULL,
-    ctypes.POINTER(ctypes.c_ulong),                 #uint32 *value=NULL);
-]
-
-c_print_type_to_one_line = g_dll.print_type_to_one_line
-c_print_type_to_one_line.argtypes = [
-    ctypes.c_char_p,                #char  *buf,
-    ctypes.c_ulong,                 #size_t bufsize,
-    ctypes.c_void_p,                #const til_t *ti,
-    ctypes.POINTER(ctypes.c_ubyte), #const type_t *pt,
-    ctypes.c_char_p,                #const char *name = NULL,
-    ctypes.POINTER(ctypes.c_ubyte), #const char *cmt = NULL,
-    ctypes.POINTER(ctypes.c_ubyte), #const p_list *field_names = NULL,
-    ctypes.POINTER(ctypes.c_ubyte), #const p_list *field_cmts = NULL);
-]
+# get_named_type = g_dll.get_named_type
+# get_named_type.argtypes = [
+#     ctypes.c_void_p,                                #const til_t *ti,
+#     ctypes.c_char_p,                                #const char *name,
+#     ctypes.c_int,                                   #int ntf_flags,
+#     ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte)), #const type_t **type=NULL,
+#     ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte)), #const p_list **fields=NULL,
+#     ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte)), #const char **cmt=NULL,
+#     ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte)), #const p_list **fieldcmts=NULL,
+#     ctypes.POINTER(ctypes.c_ulong),                 #sclass_t *sclass=NULL,
+#     ctypes.POINTER(ctypes.c_ulong),                 #uint32 *value=NULL);
+# ]
+#
+# print_type_to_one_line = g_dll.print_type_to_one_line
+# print_type_to_one_line.argtypes = [
+#     ctypes.c_char_p,                #char  *buf,
+#     ctypes.c_ulong,                 #size_t bufsize,
+#     ctypes.c_void_p,                #const til_t *ti,
+#     ctypes.POINTER(ctypes.c_ubyte), #const type_t *pt,
+#     ctypes.c_char_p,                #const char *name = NULL,
+#     ctypes.POINTER(ctypes.c_ubyte), #const char *cmt = NULL,
+#     ctypes.POINTER(ctypes.c_ubyte), #const p_list *field_names = NULL,
+#     ctypes.POINTER(ctypes.c_ubyte), #const p_list *field_cmts = NULL);
+# ]
 
 ############################################################
 c_get_numbered_type = g_dll.get_numbered_type
@@ -201,7 +201,10 @@ c_set_numbered_type.argtypes = [
 #     ctypes.c_int,
 # ]
 
-my_til = ctypes.c_void_p.in_dll(g_dll, 'idati')
+if ida_pro.IDA_SDK_VERSION < 700:
+    my_til = ctypes.c_void_p.in_dll(g_dll, 'idati')
+else:
+    my_til = g_dll.get_idati()
 my_ti = idaapi.cvar.idati
 
 LocalTypeMap = {}
@@ -635,8 +638,8 @@ class IdaTypeStorage:
         )
 
         #print "InsertType: ret = %d"%ret
-        if ret != 1:
-            print ("bad")
+        if (ida_pro.IDA_SDK_VERSION < 700 and ret != 1) or (ida_pro.IDA_SDK_VERSION >= 700 and ret != 0):
+            print ("bad insert: %s; ret = %d"%(type_obj.name,ret))
         return ret
 
 
@@ -662,7 +665,7 @@ class IdaTypeStorage:
 
 
     def ChooseTypesFromStorage(self):
-        f = TypeChooseForm(self.storage.GetAllNames(),False)
+        f = TypeChooseForm(self.storage.GetAllNames(),False,self.storage)
         r = f.Go()
         f.Free()
         if r != None and len(r[0]) != 0:
@@ -943,15 +946,11 @@ class Storage_sqlite(object):
     def GetAllProjects(self):
         return self.modify_ret(self.request(r"SELECT name FROM sqlite_master WHERE type='table'"))
 
-    def GetAllNames(self, mask=15, invert=False):
-        if mask&8:
-            return self.modify_ret(self.request(r"SELECT name FROM %s WHERE (flags == 0 OR (flags & %d) != 0)" % (self.project_name, mask&7)))
-        else:
-            return self.modify_ret(self.request(r"SELECT name FROM %s WHERE (flags == 0 OR ((flags & %d) != 0) and "
-                                                r")"))
+    def GetAllNames(self, mask=15):
+          return self.modify_ret(self.request(r"SELECT name FROM '%s' WHERE (flags == 0 OR (((flags & %d) != 0) and (%d == 8 OR (flags & 8) == %d)))" % (self.project_name,mask&7,mask&8,mask&8)))
 
-        if mask&8 == 0:
-            ret = [x for n in self.modify_ret(self.request(r"SELECT name FROM %s WHERE (flags == 0 OR (flags & 8) == 0)" % (self.project_name, mask&7))) if n in ret]
+        # if mask&8 == 0:
+        #     ret = [x for n in self.modify_ret(self.request(r"SELECT name FROM %s WHERE (flags == 0 OR (flags & 8) == 0)" % (self.project_name, mask&7))) if n in ret]
 
     def deleteProject(self, name=""):
         if name == "":
@@ -977,6 +976,7 @@ class Storage_sqlite(object):
         return ser_dic
 
     def putToStorage(self, t):
+        print "Name = %s; flag = %d"%(t.name,t.flags)
         ser_dic = t.to_dict()
         try:
             self.request(r"INSERT INTO '%s' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" % (self.project_name), (
@@ -996,6 +996,7 @@ class Storage_sqlite(object):
             elif len(res) > 1:
                 raise NameError("getFromStorage: Type duplication or error. Count = %d" % len(res))
             else:
+                # print self.to_dict(res[0])
                 return LocalType().from_dict(self.to_dict(res[0]))
         except:
             Warning("Exception on sqlite getFromStorage")
@@ -1028,14 +1029,14 @@ class Storage_sqlite(object):
     def isActual(self):
         if self.project_name != "":
             curr_cols = []
-            for inf in self.modify_ret(self.request(r"PRAGMA table_info(%s)" % self.project_name)):
+            for inf in self.modify_ret(self.request(r"PRAGMA table_info('%s')" % self.project_name)):
                 curr_cols.append(inf[1].encode("ascii"))
             return curr_cols == self.actual_cols
         return True
 
     def update_table(self):
-        self.request(r"ALTER TABLE %s ADD COLUMN flags INTEGER DEFAULT 0;"%self.project_name)
-        ret = self.request(r"SELECT name,TypeString FROM %s" % self.project_name)
+        self.request(r"ALTER TABLE '%s' ADD COLUMN flags INTEGER DEFAULT 0;"%self.project_name)
+        ret = self.request(r"SELECT name,TypeString FROM '%s'" % self.project_name)
         for name, ts in ret:
             flag = 0
             name = name.encode("ascii")
@@ -1048,7 +1049,7 @@ class Storage_sqlite(object):
                 flag = 4
             else:
                 raise NameError("Unknown type of LocalType")
-            self.request(r"UPDATE %s SET flags = ? WHERE name = ?"%self.project_name, (flag, name))
+            self.request(r"UPDATE '%s' SET flags = ? WHERE name = ?"%self.project_name, (flag, name))
 
 
 
@@ -1143,6 +1144,14 @@ class Storage(object):
         self.db[name].drop()
 
 class LocalType(object):
+
+    # Flags = {
+    #     "struct":1,
+    #     "enum":2,
+    #     "other":4,
+    #     "standard":8
+    # }
+
     def __init__(self, name = "", TypeString = "", TypeFields = "",cmt = "", fieldcmts = "", sclass = 0, parsedList = [], depends = [], isStandard = False):
         self.TypeString = TypeString
         self.TypeFields = TypeFields
@@ -1154,8 +1163,9 @@ class LocalType(object):
         self.depends = []
         self.depends_ordinals = []
         self.flags = 8 if isStandard else 0
-
-        self.parsedList = self.ParseTypeString(TypeString)
+        # print "Type string: %s"%self.TypeString.encode("HEX")
+        if self.TypeString != "":
+            self.parsedList = self.ParseTypeString(self.TypeString)
         if self.TypeString != "":
             if self.is_su():
                 self.flags |= 1
@@ -1245,6 +1255,7 @@ class LocalType(object):
     def from_dict(self,ser_dic):
         self.name = ser_dic['name'].encode("ascii")
         self.TypeString = ser_dic['TypeString'].encode("ascii").decode("base64")
+        # print "from_dict; TypeString = %s"%self.TypeString
         self.TypeFields = ser_dic['TypeFields'].encode("ascii").decode("base64")
         self.cmt = ser_dic['cmt'].encode("ascii").decode("base64")
         self.fieldcmts = ser_dic['fieldcmts'].encode("ascii").decode("base64")
@@ -1312,15 +1323,15 @@ class LocalType(object):
 
     @staticmethod
     def is_sue_static(TypeString):
-        return LocalType.is_complex(TypeString) and not LocalType.is_typedef(TypeString)
+        return LocalType.is_complex_static(TypeString) and not LocalType.is_typedef_static(TypeString)
 
     @staticmethod
     def isnt_sue_static(TypeString):
-        return not LocalType.is_sue(TypeString)
+        return not LocalType.is_sue_static(TypeString)
 
     @staticmethod
     def is_su_static(TypeString):
-        return LocalType.is_complex(TypeString) and not LocalType.is_typedef(TypeString) and not LocalType.is_enum(TypeString)
+        return LocalType.is_complex_static(TypeString) and not LocalType.is_typedef_static(TypeString) and not LocalType.is_enum_static(TypeString)
 
     @staticmethod
     def is_paf_static(TypeString):

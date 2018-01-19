@@ -660,12 +660,18 @@ class DuplicateResolverForm(Form):
         self.Close(1)
 
 
-class TypeListChooser(Choose2):
+class TypeListChooser(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
     """
     A simple chooser to be used as an embedded chooser
     """
     def __init__(self, title, type_list, flags=0, obj=None):
-        Choose2.__init__(self,
+        if ida_pro.IDA_SDK_VERSION < 700:
+            Choose2.__init__(self,
+                         title,
+                         [ ["Ord", 5], ["Name", 40] ],
+                         embedded=True, width=150, height=40, flags=flags)
+        else:
+            Choose.__init__(self,
                          title,
                          [ ["Ord", 5], ["Name", 40] ],
                          embedded=True, width=150, height=40, flags=flags)
@@ -704,17 +710,24 @@ class TypeListChooser(Choose2):
         self.selected = []
         #print sel_list
         for n in sel_list:
-            self.selected.append(self.items[n-1][1])
+            self.selected.append(self.items[n - 1][1]) if ida_pro.IDA_SDK_VERSION < 700 else self.selected.append(self.items[n][1])
         #print self.selected
 
-class TypeListChooser2(Choose2):
+class TypeListChooser2(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
 
     def __init__(self, title, type_list, flags=Choose2.CH_MULTI):
-        Choose2.__init__(
+        if ida_pro.IDA_SDK_VERSION < 700:
+            Choose2.__init__(
             self,
             title,
             [ ["Num", 5], ["Name", 30] ],
             flags = flags)
+        else:
+            Choose.__init__(
+                self,
+                title,
+                [ ["Num", 5], ["Name", 30] ],
+                flags = flags)
         self.n = 0
         self.items = []
         self.icon = 0
@@ -800,8 +813,11 @@ class TypeChooseForm(Form):
     <Show types from starndard typelibs:{rStndTypes}>{cGroup1}>
     """
     form_text_fromStorage = """Import types from storage
+    {FormChangeCb}
     <Types for choose:{cEChooser}>
-    <##Get all types:{iButtonSyncAll}><Resolve type dependencies:{rResDep}>{cGroup1}>
+    <##Get all types:{iButtonSyncAll}>      <Structure:{rStruct}><Enums:{rEnums}><Typedefs:{rTypedefs}>{cFilters}>
+    <Resolve type dependencies:{rResDep}>
+    <Show types from starndard typelibs:{rStndTypes}>{cGroup1}>
     """
 
     def __init__(self,type_list, fFromIDB=True, db=None):
@@ -820,18 +836,20 @@ class TypeChooseForm(Form):
                  'cFilters': Form.ChkGroupControl(("rStruct","rEnums", "rTypedefs"))
             })
         else:
-            Form.__init__(self, TypeChooseForm.form_text_fromStorage, {
+            Form.__init__(self, TypeChooseForm.form_text_fromIDB, {
                 'cEChooser': Form.EmbeddedChooserControl(self.EChooser),
                 'iButtonSyncAll': Form.ButtonInput(self.onSyncAllTypes),
-                'cGroup1': Form.ChkGroupControl(("rResDep", ))
+                'FormChangeCb': Form.FormChangeCb(self.OnFormChange),
+                'cGroup1': Form.ChkGroupControl(("rResDep", "rStndTypes")),
+                'cFilters': Form.ChkGroupControl(("rStruct", "rEnums", "rTypedefs"))
             })
 
     def Go(self):
         self.Compile()
         self.rResDep.checked = True
-        if self.fFromIDB:
-            self.rStndTypes.checked = True
-            self.cFilters.value = 7
+        # if self.fFromIDB:
+        self.rStndTypes.checked = True
+        self.cFilters.value = 7
         # print map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)),x],self.typeList.keys())
         if self.fFromIDB:
             self.EChooser.items = map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)),x],self.typeList.keys())
@@ -862,26 +880,42 @@ class TypeChooseForm(Form):
                 self.EChooser.items = map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)), x], self.curTypes)
                     # self.EChooser.make_items(["AAAA","BBBBB","FFFFFF"])
                     # self.EChooser.Embedded()
-                self.RefreshField(self.controls["cEChooser"])
+            else:
+                self.curTypes = self.db.GetAllNames(self.GetControlValue(self.cFilters)|(self.GetControlValue(self.rStndTypes)<<3))
+                self.EChooser.make_items(self.curTypes)
+            self.RefreshField(self.controls["cEChooser"])
 
         if fid == self.cFilters.id:
-            val = self.GetControlValue(self.cFilters)
-            filtered = filter(lambda x: ((val&1 and (self.typeList[x].is_struct()or self.typeList[x].is_union())) or (val&2 and self.typeList[x].is_enum()) or (val&4 and not self.typeList[x].is_sue())),self.curTypes)
-            self.EChooser.items = map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)), x], filtered)
+            if self.fFromIDB:
+                val = self.GetControlValue(self.cFilters)
+                filtered = filter(lambda x: ((val&1 and (self.typeList[x].is_struct()or self.typeList[x].is_union())) or (val&2 and self.typeList[x].is_enum()) or (val&4 and not self.typeList[x].is_sue())),self.curTypes)
+                self.EChooser.items = map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)), x], filtered)
+            else:
+                # print self.GetControlValue(self.cFilters)
+                # print self.GetControlValue(self.cFilters) | (self.GetControlValue(self.rStndTypes) << 3)
+                self.curTypes = self.db.GetAllNames(self.GetControlValue(self.cFilters) | (self.GetControlValue(self.rStndTypes) << 3))
+                # print self.curTypes
+                self.EChooser.make_items(self.curTypes)
             self.RefreshField(self.controls["cEChooser"])
 
         return 1
 
 
-class ProjectChooser(Choose2):
+class ProjectChooser(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
     """
     A simple chooser to be used as an embedded chooser
     """
     def __init__(self, title, name_list, db = None, flags=0, obj = None):
-        Choose2.__init__(self,
-                         title,
-                         [ ["Project name", 40] ],
-                         embedded=True, width=40, height=10, flags=flags)
+        if ida_pro.IDA_SDK_VERSION < 700:
+            Choose2.__init__(self,
+                             title,
+                             [ ["Project name", 40] ],
+                             embedded=True, width=40, height=10, flags=flags)
+        else:
+            Choose.__init__(self,
+                             title,
+                             [ ["Project name", 40] ],
+                             embedded=True, width=40, height=10, flags=flags)
         self.n = 0
         # self.items = [ self.make_item() for x in xrange(0, nb+1) ]
         self.items = []
@@ -922,8 +956,16 @@ class ProjectChooser(Choose2):
 
     def OnSelectionChange(self, sel_list):
         self.selected = []
-        for sel in sel_list:
-            self.selected.append(self.items[sel-1][0])
+        # print sel_list
+        if ida_pro.IDA_SDK_VERSION < 700:
+            for sel in sel_list:
+                self.selected.append(self.items[sel-1][0])
+        else:
+            if type(sel_list) == int:
+                self.selected.append(self.items[sel_list][0])
+            else:
+                for sel in sel_list:
+                    self.selected.append(self.items[sel][0])
 
     def OnDeleteLine(self, n):
         #print("del %d " % n)
