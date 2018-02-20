@@ -518,39 +518,42 @@ class IdaTypeStorage:
         # for i in range(12114, 12115):
             name = GetLocalTypeName(i)
             #print "Ordinal = %d; Type name = %s"%(i,name)
+
             if name != None:
-                typ_type = ctypes.c_char_p()
-                typ_fields = ctypes.c_char_p()
-                typ_cmt = ctypes.c_char_p()
-                typ_fieldcmts = ctypes.c_char_p()
-                typ_sclass = ctypes.c_ulong()
-                ret = c_get_numbered_type(
-                    my_til,
-                    i,
-                    ctypes.byref(typ_type),
-                    ctypes.byref(typ_fields),
-                    ctypes.byref(typ_cmt),
-                    ctypes.byref(typ_fieldcmts),
-                    ctypes.byref(typ_sclass)
-                )
-                typ_type = typ_type.value
-                if typ_type == None:
-                    typ_type = ""
-                #print typ_type
-                typ_fields = typ_fields.value
-                if typ_fields == None:
-                    typ_fields = ""
-                typ_cmt = typ_cmt.value
-                if typ_cmt == None:
-                    typ_cmt = ""
-                typ_fieldcmts = typ_fieldcmts.value
-                if typ_fieldcmts == None:
-                    typ_fieldcmts = ""
-                typ_sclass = typ_sclass.value
-                t = LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass, isStandard=self.isStanadardType(name))
-                self.LocalTypeMap[name] = t
-                #self.OrdinalsMap[name]
-                continue
+                sid = get_struc_id(name)
+                if (sid is not None or sid != BADADDR) and get_struc_size(sid) != 0:
+                    typ_type = ctypes.c_char_p()
+                    typ_fields = ctypes.c_char_p()
+                    typ_cmt = ctypes.c_char_p()
+                    typ_fieldcmts = ctypes.c_char_p()
+                    typ_sclass = ctypes.c_ulong()
+                    ret = c_get_numbered_type(
+                        my_til,
+                        i,
+                        ctypes.byref(typ_type),
+                        ctypes.byref(typ_fields),
+                        ctypes.byref(typ_cmt),
+                        ctypes.byref(typ_fieldcmts),
+                        ctypes.byref(typ_sclass)
+                    )
+                    typ_type = typ_type.value
+                    if typ_type == None:
+                        typ_type = ""
+                    #print typ_type
+                    typ_fields = typ_fields.value
+                    if typ_fields == None:
+                        typ_fields = ""
+                    typ_cmt = typ_cmt.value
+                    if typ_cmt == None:
+                        typ_cmt = ""
+                    typ_fieldcmts = typ_fieldcmts.value
+                    if typ_fieldcmts == None:
+                        typ_fieldcmts = ""
+                    typ_sclass = typ_sclass.value
+                    t = LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass, isStandard=self.isStanadardType(name))
+                    self.LocalTypeMap[name] = t
+                    #self.OrdinalsMap[name]
+                    continue
             #self.FreeOrdinals.append(i)
         #print len(self.LocalTypeMap)
         # f = open("F:\IdaTextTypesParser\cache.dat","wb")
