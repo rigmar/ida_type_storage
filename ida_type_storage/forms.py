@@ -968,15 +968,14 @@ class ProjectChooser(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
                     self.selected.append(self.items[sel][0])
 
     def OnDeleteLine(self, n):
-        #print("del %d " % n)
-        if n > 0:
-            # print("del %d " % n)
-            # print self.items[n]
-            if fSQL:
-                self.db.deleteProject(self.items[n][0])
-            else:
-                self.db[self.items[n][0]].drop()
-            del self.items[n]
+        # print("del %d " % n)
+        # print("del %d " % n)
+        # print self.items[n]
+        if fSQL:
+            self.db.deleteProject(self.items[n][0])
+        else:
+            self.db[self.items[n][0]].drop()
+        del self.items[n]
         return n
 
 

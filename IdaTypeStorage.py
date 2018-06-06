@@ -204,7 +204,19 @@ c_set_numbered_type.argtypes = [
 if ida_pro.IDA_SDK_VERSION < 700:
     my_til = ctypes.c_void_p.in_dll(g_dll, 'idati')
 else:
-    my_til = g_dll.get_idati()
+    c_get_idati = g_dll.get_idati
+    c_get_idati.restype = ctypes.c_longlong
+    my_til = c_get_idati()
+
+c_compact_numbered_types = g_dll.compact_numbered_types
+
+c_compact_numbered_types.argtypes = [
+            ctypes.c_longlong,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int
+        ]
+
 my_ti = idaapi.cvar.idati
 
 LocalTypeMap = {}
@@ -428,7 +440,7 @@ class IdaTypeStorage:
         for act in self.actions:
             act.unregisterAction()
 
-    def doPushAll(self):
+    def doPushAll(self,ctx):
         # if fDebug ==True:
         #     pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
@@ -438,7 +450,7 @@ class IdaTypeStorage:
         #sorted_list = self.resolveDependenciesForExport(self.LocalTypeMap.values())
         self.saveToStorage(self.LocalTypeMap.values(), True)
 
-    def doPullAll(self):
+    def doPullAll(self,ctx):
         # if fDebug ==True:
         #     pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
@@ -446,6 +458,7 @@ class IdaTypeStorage:
                 return
         self.Initialise()
         sorted_list = self.resolveDependencies(self.storage.GetAllNames())
+        c_compact_numbered_types(my_til, 1, 0, 0)
         for t in sorted_list:
             self.InsertType(t,True)
 
@@ -466,7 +479,7 @@ class IdaTypeStorage:
                 sorted_list = self.resolveDependencies(fromStorage)
             else:
                 sorted_list = fromStorage
-
+            c_compact_numbered_types(my_til, 1, 0, 0)
             for t in sorted_list:
                 self.InsertType(t)
             print ("Imported from storage %d types"%len(sorted_list))
@@ -520,8 +533,10 @@ class IdaTypeStorage:
             #print "Ordinal = %d; Type name = %s"%(i,name)
 
             if name != None:
-                sid = get_struc_id(name)
-                if (sid is not None or sid != BADADDR) and get_struc_size(sid) != 0:
+                tif = tinfo_t()
+                rc = tif.get_numbered_type(my_ti,i)
+                if tif.get_size() != BADADDR:
+                    c_compact_numbered_types(my_til, 1, 0, 0)
                     typ_type = ctypes.c_char_p()
                     typ_fields = ctypes.c_char_p()
                     typ_cmt = ctypes.c_char_p()
@@ -856,6 +871,7 @@ class IdaTypeStorage:
         fromStorage = self.getAllTypesFromStorage()
         sorted_list = self.resolveDependencies(fromStorage)
         #print sorted_list
+        c_compact_numbered_types(my_til, 1, 0, 0)
         for t in sorted_list:
             self.InsertType(t)
 
@@ -1314,6 +1330,9 @@ class LocalType(object):
 
     def is_enum(self):
         return ord(self.TypeString[0])&TYPE_FULL_MASK == BTF_ENUM
+
+    def is_ptr(self):
+        return  ord(self.TypeString[0])&TYPE_FULL_MASK == BT_PTR
 
 
     @staticmethod
