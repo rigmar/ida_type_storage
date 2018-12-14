@@ -189,15 +189,26 @@ class Storage_sqlite(object):
 #
 # actual_cols = ['name', 'TypeString', 'TypeFields', 'cmt', 'fieldcmts', 'sclass', 'parsedList', 'depends', 'depends_ordinals', "flags"]
 # cols = []
-db = Storage_sqlite("C:\work\IDA 6.95\TypeStorage.db","test2")
-print db.GetAllNames()
-print db.GetAllProjects()
+# db = Storage_sqlite("F:\IDA 7.2\TypeStorage.db","test")
+# print db.GetAllNames()
+# print db.GetAllProjects()
+#
+# print db.isActual()
+# #db.update_table()
+# #print db.isActual()
+# print db.request(r"SELECT flags FROM test2")
+#
+# print db.request(r"UPDATE test2 SET flags = ? WHERE name == ?",(11,"TPropInfo"))
+#
+# print db.request(r"SELECT flags FROM test2 WHERE (flags & 3) == 3")
 
-print db.isActual()
-#db.update_table()
-#print db.isActual()
-print db.request(r"SELECT flags FROM test2")
+names = ["ATL::CDataSource","ATL::CDataSource","BBBBB","CMFCToolBarNameDialog"]
 
-print db.request(r"UPDATE test2 SET flags = ? WHERE name == ?",(11,"TPropInfo"))
+conn = sqlite3.connect("F:\IDA 7.2\TypeStorage.db")
+c = conn.cursor()
+res = c.execute(r"SELECT name FROM test WHERE name=?",names)
+res = res.fetchall()
+conn.commit()
+conn.close()
 
-print db.request(r"SELECT flags FROM test2 WHERE (flags & 3) == 3")
+print res

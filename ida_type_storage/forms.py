@@ -400,7 +400,8 @@ class LNTextEdit(QtWidgets.QFrame):
 
 class DublicateResolverUI(QDialog):
     def __init__(self,leftText = "", rightText = "",fToStorage = True):
-        super(DublicateResolverUI, self).__init__()
+        flags = Qt.WindowFlags(Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint | Qt.WindowMaximizeButtonHint)
+        super(DublicateResolverUI, self).__init__(flags=flags)
         self.textEdits = []
         self.sel = 1
         self.selText = ""
@@ -586,8 +587,8 @@ class DublicateResolverUI(QDialog):
         result = list(d.compare(s1, s2))
         return result
     def Go(self):
-        # self.setWindowModality(Qt.ApplicationModal)
-        self.setWindowModality(Qt.WindowModal)
+        self.setWindowModality(Qt.ApplicationModal)
+        # self.setWindowModality(Qt.WindowModal)
         oldTo = idaapi.set_script_timeout(0)
         res = self.exec_()
         idaapi.set_script_timeout(oldTo)
@@ -736,7 +737,7 @@ class TypeListChooser2(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
         self.selected = []
         self.make_items(type_list)
 
-        print("created %s" % str(self))
+        # print("created %s" % str(self))
 
     def OnClose(self):
         print ("closed", str(self))
@@ -836,7 +837,7 @@ class TypeChooseForm(Form):
                  'cFilters': Form.ChkGroupControl(("rStruct","rEnums", "rTypedefs"))
             })
         else:
-            Form.__init__(self, TypeChooseForm.form_text_fromIDB, {
+            Form.__init__(self, TypeChooseForm.form_text_fromStorage, {
                 'cEChooser': Form.EmbeddedChooserControl(self.EChooser),
                 'iButtonSyncAll': Form.ButtonInput(self.onSyncAllTypes),
                 'FormChangeCb': Form.FormChangeCb(self.OnFormChange),
@@ -905,7 +906,7 @@ class ProjectChooser(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
     """
     A simple chooser to be used as an embedded chooser
     """
-    def __init__(self, title, name_list, db = None, flags=0, obj = None):
+    def __init__(self, title, name_list, db = None, flags=ida_kernwin.Choose.CH_CAN_DEL|ida_kernwin.Choose.CH_CAN_REFRESH, obj = None):
         if ida_pro.IDA_SDK_VERSION < 700:
             Choose2.__init__(self,
                              title,
@@ -976,6 +977,7 @@ class ProjectChooser(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
         else:
             self.db[self.items[n][0]].drop()
         del self.items[n]
+        self.obj.RefreshField(self.obj.controls["cEChooser"])
         return n
 
 
@@ -998,12 +1000,13 @@ class ChooseProject(Form):
         Form.__init__(self,
 r"""
 Choose project for connect
-
+{FormChangeCb}
 <Projects in storage:{cEChooser}>   <##Create new project:{iButtonNewProject}><##Delete Project:{iButtonDelProject}>
 """, {
         'cEChooser' : Form.EmbeddedChooserControl(self.EChooser),
         'iButtonNewProject': Form.ButtonInput(self.onNewProject),
         'iButtonDelProject': Form.ButtonInput(self.onDelProject),
+        'FormChangeCb': Form.FormChangeCb(self.OnFormChange),
     })
 
     def Go(self):
@@ -1038,6 +1041,11 @@ Choose project for connect
             # print self.EChooser.items
             # print self.controls
             self.RefreshField(self.controls['cEChooser'])
+            
+    def OnFormChange(self, fid):
+        if fid == self.cEChooser.id:
+            self.RefreshField(self.controls["cEChooser"])
+        return 1
 
 
 class ConnectToSQLBase(Form):
@@ -1056,7 +1064,7 @@ class ConnectToSQLBase(Form):
     def Go(self):
         self.Compile()
         ok = self.Execute()
-        print ("ConnectToSQLBase: Go: Ok = %d; Base file path = %s"%(ok,self.iBaseFile.value))
+        # print ("ConnectToSQLBase: Go: Ok = %d; Base file path = %s"%(ok,self.iBaseFile.value))
         if ok == 1:
             return self.iBaseFile.value
         return None
@@ -1081,7 +1089,7 @@ class ConnectToBase(Form):
     def Go(self):
         self.Compile()
         ok = self.Execute()
-        print ("ConnectToBase: Go: Ok = %d; ServerIP = %s; Port = %d"%(ok,self.iServerIP.value,self.iPort.value))
+        # print ("ConnectToBase: Go: Ok = %d; ServerIP = %s; Port = %d"%(ok,self.iServerIP.value,self.iPort.value))
         if ok == 1:
             return self.iServerIP.value, self.iPort.value
         return None
