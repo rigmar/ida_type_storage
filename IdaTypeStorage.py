@@ -1,9 +1,17 @@
+from __future__ import print_function
+
+import base64
+from builtins import chr
+from builtins import range
+from builtins import object
 from idaapi import *
 from idc import *
 import time
 import idaapi
+import ida_pro
 import idc
 from ctypes import *
+import ctypes
 import pickle
 import os, sys
 import struct
@@ -21,7 +29,7 @@ else:
 
 fDebug = False
 if fDebug:
-    import pydevd
+    import pydevd_pycharm
 
 class ActionWrapper(idaapi.action_handler_t):
     def __init__(self, id, name, shortcut, menuPath, callback, args = None):
@@ -83,7 +91,7 @@ til_t._fields_ = [
         ("nbases", ctypes.c_int),
         ("base", ctypes.POINTER(ctypes.POINTER(til_t)))]
 
-wrapperTypeString = '\x0d\x01\x01'
+wrapperTypeString = b'\x0d\x01\x01'
 
 ############################################################
 # Specifying function types for a few IDA SDK functions to keep the
@@ -143,15 +151,20 @@ c_set_numbered_type.argtypes = [
 
 
 
-my_ti = idaapi.get_idati()
+my_ti = None
+def get_my_ti():
+    global my_ti
+    if my_ti is None:
+        my_ti = idaapi.get_idati()
+    return my_ti
 
-class TinfoReader:
+class TinfoReader(object):
     def __init__(self, tp):
         self.pos = 0
         self.tp = tp
 
     def read_byte(self):
-        (result,) = struct.unpack("<B", self.tp[self.pos])
+        (result,) = struct.unpack("<B", self.tp[self.pos:self.pos+1])
         self.pos += 1
         return result
 
@@ -188,14 +201,13 @@ def encode_ordinal_to_string(ordinal):
     return stemp
 
 def decode_ordinal_string(enc):
-    if enc[1] == "#":
+    if enc[1] == ord("#"):
         ord_num = 0
         i = 0
         fEnd = 0
-        str_len = struct.unpack("B",enc[0])[0] - 2
+        str_len = struct.unpack("B",enc[0:1])[0] - 2
         #print len
         for ch in enc[2:]:
-            ch = ord(ch)
             if ch == 0:
                 return 0
             ord_num = ord_num * 0x40
@@ -244,14 +256,16 @@ def encode_ordinal(ordinal):
         while bt > 0x7f:
             bt = bt // 0x80
             enc.append(bt&0x7f|0x80)
-    stemp = ""
+    stemp = b""
     for i in range(0,len(enc)):
         stemp = stemp + struct.pack("B",enc.pop(-1))
     return stemp
 
-class IdaTypeStorage:
+class IdaTypeStorage(object):
 
     def __init__(self):
+        if fDebug ==True:
+            pydevd_pycharm.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         self.storage_types_cache = None
         self.OrdinalsMap = collections.OrderedDict()
         self.list_type_library = []
@@ -264,14 +278,9 @@ class IdaTypeStorage:
         self.fResDep = True
         self.storageAddr = None
         self.actions = []
-        if ida_pro.IDA_SDK_VERSION < 720:
-            self.InsertType = self.InsertTypeOld
-            self.ImportLocalType = self.ImportLocalTypeOld
-            self.Initialise = self.InitialiseOld
-        else:
-            self.InsertType = self.InsertTypeNew
-            self.ImportLocalType = self.ImportLocalTypeNew
-            self.Initialise = self.InitialiseNew
+        # self.InsertType = self.InsertTypeNew
+        # self.ImportLocalType = self.ImportLocalTypeNew
+        # self.Initialise = self.InitialiseNew
 
     def ReconnectToStorage(self,ctx):
         if self.storage is not None:
@@ -353,7 +362,7 @@ class IdaTypeStorage:
                 return
         self.Initialise()
         #sorted_list = self.resolveDependenciesForExport(self.LocalTypeMap.values())
-        self.saveToStorage(self.LocalTypeMap.values(), True)
+        self.saveToStorage(list(self.LocalTypeMap.values()), True)
 
     def doPullAll(self,ctx):
         # if fDebug ==True:
@@ -373,7 +382,7 @@ class IdaTypeStorage:
     def doImportTypes(self,ctx):
         self.fResDep = True
         if fDebug ==True:
-            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+            pydevd_pycharm.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
@@ -389,12 +398,12 @@ class IdaTypeStorage:
                 self.init_storage_cache()
                 fromStorage = self.getFromStorageCached(sel_list)
             t_delta = time.time() - t_start
-            print "doImportTypes: getFromStorage time elapsed = %f" % t_delta
+            print("doImportTypes: getFromStorage time elapsed = %f" % t_delta)
             if self.fResDep:
                 t_start = time.time()
                 sorted_list = self.resolveDependencies(fromStorage)
                 t_delta = time.time() - t_start
-                print "doImportTypes: resolveDependencies time elapsed = %f" % t_delta
+                print("doImportTypes: resolveDependencies time elapsed = %f" % t_delta)
             else:
                 sorted_list = fromStorage
             # c_compact_numbered_types(my_til, 1, 0, 0)
@@ -403,20 +412,20 @@ class IdaTypeStorage:
                 self.InsertType(t)
             self.close_storage_cache()
             t_delta = time.time() - t_start
-            print "doImportTypes: InsertTypes time elapsed = %f"%t_delta
+            print("doImportTypes: InsertTypes time elapsed = %f"%t_delta)
             print ("Imported from storage %d types"%len(sorted_list))
 
     def doExportTypes(self,ctx):
         self.fResDep = True
         if fDebug == True:
-            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+            pydevd_pycharm.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
         t_start = time.time()
         self.Initialise()
         t_delta = time.time() - t_start
-        print "doExportTypes: Initialise elapsed time = %f" % t_delta
+        print("doExportTypes: Initialise elapsed time = %f" % t_delta)
         sel_list = self.ChooseLocalTypes()
         if len(sel_list) > 0:
             
@@ -424,13 +433,13 @@ class IdaTypeStorage:
                 t_start = time.time()
                 sorted_list = self.resolveDependenciesForExport(sel_list)
                 t_delta = time.time() - t_start
-                print "doExportTypes: resolveDependenciesForExport time elapsed = %f" % t_delta
+                print("doExportTypes: resolveDependenciesForExport time elapsed = %f" % t_delta)
             else:
                 sorted_list = sel_list
             t_start = time.time()
             self.saveToStorage(sorted_list)
             t_delta = time.time() - t_start
-            print "doExportTypes: saveToStorage time elapsed =  %f" % t_delta
+            print("doExportTypes: saveToStorage time elapsed =  %f" % t_delta)
             print ("Exported to storage %d types"%len(sorted_list))
 
     def doCompactNumberedTypes(self,ctx):
@@ -439,7 +448,7 @@ class IdaTypeStorage:
     def InitTypeLibsList(self):
         idati = idaapi.cvar.idati
         self.list_type_library = []
-        for idx in xrange(idaapi.cvar.idati.nbases):
+        for idx in range(idaapi.cvar.idati.nbases):
             type_library = idaapi.cvar.idati.base(idx)  # idaapi.til_t type
             self.list_type_library.append((type_library, type_library.name, type_library.desc))
 
@@ -454,56 +463,68 @@ class IdaTypeStorage:
                     return True
         return False
 
-    def InitialiseNew(self):
+    def Initialise(self):
         self.InitTypeLibsList()
         # compact_numbered_types(my_til)
         self.LocalTypeMap = collections.OrderedDict()
         self.FreeOrdinals = []
         self.OrdinalsMap = collections.OrderedDict()
-        for i in range(1, GetMaxLocalType()):
-            name = GetLocalTypeName(i)
+        for i in range(1, idc.get_ordinal_qty()):
+            name = idc.get_numbered_type_name(i)
+            assert name
             if name:
-                tif = tinfo_t()
-                rc = tif.get_numbered_type(idaapi.get_idati(),i)
-                if tif.get_size()&0xFFFFFFFF != BADADDR:
+                #todo: doing something with empty and error types
+                
+                # tif = tinfo_t()
+                # rc = tif.get_numbered_type(idaapi.get_idati(),i)
+                # assert tif.get_size()&0xFFFFFFFF != BADADDR
+                # if tif.get_size()&0xFFFFFFFF != BADADDR:
                     #c_compact_numbered_types(my_til, 1, 0, 0)
-                    ret = get_numbered_type(
-                        idaapi.get_idati(),
-                        i
-                    )
-                    typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass = ret
-                    if typ_type is None:
-                        typ_type = ""
-                    if typ_fields is None:
-                        typ_fields = ""
-                    if typ_cmt is None:
-                        typ_cmt = ""
-                    if typ_fieldcmts is None:
-                        typ_fieldcmts = ""
-                    t = LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass, isStandard=self.isStanadardType(name))
-                    self.LocalTypeMap[name] = t
-                    #self.OrdinalsMap[name]
-                    continue
+                ret = get_numbered_type(
+                    idaapi.get_idati(),
+                    i
+                )
+                typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass = ret
+                if typ_type is None:
+                    typ_type = b""
+                if typ_fields is None:
+                    typ_fields = b""
+                if typ_cmt is None:
+                    typ_cmt = b""
+                if typ_fieldcmts is None:
+                    typ_fieldcmts = b""
+                t = LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass, isStandard=self.isStanadardType(name))
+                self.LocalTypeMap[name] = t
+                #self.OrdinalsMap[name]
+                continue
             #self.FreeOrdinals.append(i)
 
 
-    def ImportLocalTypeNew(self,idx):
-        name = GetLocalTypeName(idx)
+    def ImportLocalType(self,idx):
+        name = idc.get_numbered_type_name(idx)
         if name != None and name not in self.LocalTypeMap:
             ret = get_numbered_type(
                 idaapi.get_idati(),
                 idx
             )
             typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass = ret
+            if typ_type is None:
+                typ_type = b""
+            if typ_fields is None:
+                typ_fields = b""
+            if typ_cmt is None:
+                typ_cmt = b""
+            if typ_fieldcmts is None:
+                typ_fieldcmts = b""
             return LocalType(name,typ_type,typ_fields,typ_cmt,typ_fieldcmts,typ_sclass, isStandard=self.isStanadardType(name))
         elif name != None:
             return self.LocalTypeMap[name]
         return None
 
-    def InsertTypeNew(self,type_obj,fReplace = False):
-        print "Insert type %s." % type_obj.name
-        if self.getTypeOrdinal(type_obj.name.encode("ascii")) != 0:
-            idx = self.getTypeOrdinal(type_obj.name.encode("ascii"))
+    def InsertType(self,type_obj,fReplace = False):
+        print("Insert type %s." % type_obj.name)
+        if self.getTypeOrdinal(type_obj.name) != 0:
+            idx = self.getTypeOrdinal(type_obj.name)
             t = self.ImportLocalType(idx)
             if (t.TypeFields is None or t.TypeFields == "") and t.is_sue():
                 fReplace = True
@@ -540,7 +561,7 @@ class IdaTypeStorage:
 
 
     def getTypeOrdinal(self,name):
-        global my_ti
+        my_ti = get_my_ti()
         my_ti = idaapi.cvar.idati
         return get_type_ordinal(my_ti,name)
 
@@ -625,7 +646,7 @@ class IdaTypeStorage:
         toResolveNames = []
         #print "resolveDependencies: startList", startList
         prev_len = -1
-        if type(startList[0]) == str or type(startList[0]) == unicode:
+        if type(startList[0]) == str or type(startList[0]) == str:
             self.init_storage_cache()
             startList = self.getFromStorage(startList)
         while len(toResolve) != prev_len:
@@ -678,7 +699,7 @@ class IdaTypeStorage:
     def getFromLocalTypesMap(self,name_list):
         type_list = []
         for name in name_list:
-            if (type(name) == str or type(name) == unicode) and name in self.LocalTypeMap:
+            if (type(name) == str or type(name) == str) and name in self.LocalTypeMap:
                 type_list.append(self.LocalTypeMap[name])
             else:
                 raise NameError("getLocalTypesFromMap: missing type %s"%name)
@@ -692,7 +713,7 @@ class IdaTypeStorage:
         prev_len = -1
         while len(toResolve) != prev_len:
             prev_len = len(toResolve)
-            if type(startList[0]) == str or type(startList[0]) == unicode:
+            if type(startList[0]) == str or type(startList[0]) == str:
                 startList = self.getFromLocalTypesMap(startList)
             for t in startList:
                 for name in t.depends:
@@ -753,7 +774,7 @@ class IdaTypeStorage:
     def allTypeToStorage(self):
         toStorage = []
         self.Initialise()
-        for t in self.LocalTypeMap.values():
+        for t in list(self.LocalTypeMap.values()):
             toStorage.append(t)
         self.saveToStorage(toStorage)
 
@@ -772,7 +793,7 @@ class IdaTypeStorage:
 
     def FixSTLNames(self,types_list, fFromStorage = False):
         fixed_names = {}
-        if type(types_list) == str or type(types_list) == unicode:
+        if type(types_list) == str or type(types_list) == str:
                 if fFromStorage:
                     types_list = self.getFromStorage(types_list)
                 else:
@@ -796,19 +817,19 @@ class IdaTypeStorage:
             elif f.sel == 2:
                 return t2
             else:
-                r = idc.ParseType(f.selText, 0x008E)
+                r = idc.parse_decl(f.selText, 0x008E)
                 if r is not None:
                     return LocalType(r[0], r[1], r[2])
 
     def InsertTypeOld(self, type_obj, fReplace=False):
-        global my_ti
+        my_ti = get_my_ti()
         my_ti = idaapi.cvar.idati
         # print "InsertType:",type(type_obj.name), type_obj.name
         # print "InsertType: idx = %d"%self.getTypeOrdinal(type_obj.name.encode("ascii"))
         # print "InsertType: idx = %d"%self.get_type_ordinal(my_ti,type_obj.name.encode("ascii"))
-        if self.getTypeOrdinal(type_obj.name.encode("ascii")) != 0:
+        if self.getTypeOrdinal(type_obj.name) != 0:
             # print "InsertType: getTypeOrdinal"
-            idx = self.getTypeOrdinal(type_obj.name.encode("ascii"))
+            idx = self.getTypeOrdinal(type_obj.name)
             t = self.ImportLocalType(idx)
             if (t.TypeFields is None or t.TypeFields == "") and t.is_sue():
                 fReplace = True
@@ -860,7 +881,7 @@ class IdaTypeStorage:
 
     def ImportLocalTypeOld(self, idx):
         global my_til
-        name = GetLocalTypeName(idx)
+        name = idc.get_numbered_type_name(idx)
         if name != None and name not in self.LocalTypeMap:
             typ_type = ctypes.c_char_p()
             typ_fields = ctypes.c_char_p()
@@ -880,7 +901,7 @@ class IdaTypeStorage:
             typ_fields = typ_fields.value
             typ_cmt = typ_cmt.value
             typ_fieldcmts = typ_fieldcmts.value
-            return LocalType(name, typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass, isStandard=self.isStanadardType(name))
+            return LocalType(name, typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass.value, isStandard=self.isStanadardType(name))
         elif name != None:
             return self.LocalTypeMap[name]
         return None
@@ -893,9 +914,9 @@ class IdaTypeStorage:
         self.LocalTypeMap = collections.OrderedDict()
         self.FreeOrdinals = []
         self.OrdinalsMap = collections.OrderedDict()
-        for i in range(1, GetMaxLocalType()):
+        for i in range(1, idc.get_ordinal_qty()):
             # for i in range(12114, 12115):
-            name = GetLocalTypeName(i)
+            name = idc.get_numbered_type_name(i)
             # print "Ordinal = %d; Type name = %s"%(i,name)
     
             if name != None:
@@ -1016,13 +1037,13 @@ class Storage_sqlite(object):
             ret = []
             for el in res:
                 if type(el) != int:
-                    ret.append(el[0].encode("ascii"))
+                    ret.append(el[0])
             return ret
         elif len(res) == 1 and len(res[0]) > 1:
             ret = []
             for el in res[0]:
                 if type(el) != int:
-                    ret.append(el.encode("ascii"))
+                    ret.append(el)
             return ret
         return res
 
@@ -1051,10 +1072,10 @@ class Storage_sqlite(object):
         ser_dic['TypeFields'] = res[2]
         ser_dic['cmt'] = res[3]
         ser_dic['fieldcmts'] = res[4]
-        ser_dic['sclass'] = pickle.loads(res[5].encode("ascii").decode("base64"))
-        ser_dic['parsedList'] = pickle.loads(res[6].encode("ascii").decode("base64"))
-        ser_dic['depends'] = pickle.loads(res[7].encode("ascii").decode("base64"))
-        ser_dic['depends_ordinals'] = pickle.loads(res[8].encode("ascii").decode("base64"))
+        ser_dic['sclass'] = pickle.loads(base64.b64decode(res[5]))
+        ser_dic['parsedList'] = pickle.loads(base64.b64decode(res[6]))
+        ser_dic['depends'] = pickle.loads(base64.b64decode(res[7]))
+        ser_dic['depends_ordinals'] = pickle.loads(base64.b64decode(res[8]))
         ser_dic['flags'] = res[9]
         return ser_dic
 
@@ -1082,6 +1103,8 @@ class Storage_sqlite(object):
             Warning("Exception on sqlite putToStorage")
 
     def getFromStorage(self, name):
+        if type(name) == bytes:
+            name = name.decode("utf-8")
         try:
             res = self.request(r"SELECT * FROM '%s' WHERE name=?" % self.project_name, (name,))
             if len(res) == 0:
@@ -1122,7 +1145,9 @@ class Storage_sqlite(object):
                                         ser_dic["parsedList"],
                                         ser_dic["depends"],
                                         ser_dic["depends_ordinals"],
-                                        ser_dic['flags']))
+                                        ser_dic['flags'],
+                                        name)
+                                        )
             return True
         except:
             Warning("Exception on sqlite updateType")
@@ -1132,7 +1157,7 @@ class Storage_sqlite(object):
         if self.project_name != "":
             curr_cols = []
             for inf in self.modify_ret(self.request(r"PRAGMA table_info('%s')" % self.project_name)):
-                curr_cols.append(inf[1].encode("ascii"))
+                curr_cols.append(inf[1] if type(inf[1]) == str else inf[1].decode("utf-8"))
             return curr_cols == self.actual_cols
         return True
 
@@ -1141,7 +1166,6 @@ class Storage_sqlite(object):
         ret = self.request(r"SELECT name,TypeString FROM '%s'" % self.project_name)
         for name, ts in ret:
             flag = 0
-            name = name.encode("ascii")
             ts = ts.decode("base64")
             if LocalType.is_su_static(ts):
                 flag = 1
@@ -1254,21 +1278,21 @@ class LocalType(object):
     #     "standard":8
     # }
 
-    def __init__(self, name = "", TypeString = "", TypeFields = "",cmt = "", fieldcmts = "", sclass = 0, parsedList = [], depends = [], isStandard = False):
+    def __init__(self, name=b"", TypeString=b"", TypeFields=b"", cmt=b"", fieldcmts=b"", sclass=0, parsedList=None, depends=None, isStandard=False):
         self.TypeString = TypeString
         self.TypeFields = TypeFields
         self.cmt = cmt
-        self.fieldcmts = fieldcmts
+        self.fieldcmts = fieldcmts if type(fieldcmts) == bytes else fieldcmts.encode("utf-8")
         self.sclass = sclass
         self.name = name
-        self.parsedList = []
-        self.depends = []
+        self.parsedList = [] if parsedList is None else parsedList
+        self.depends = [] if depends is None else depends
         self.depends_ordinals = []
         self.flags = 8 if isStandard else 0
         # print "Type string: %s"%self.TypeString.encode("HEX")
-        if self.TypeString != "":
+        if self.TypeString != b"":
             self.parsedList = self.ParseTypeString(self.TypeString)
-        if self.TypeString != "":
+        if self.TypeString != b"":
             if self.is_su():
                 self.flags |= 1
             elif self.is_enum():
@@ -1286,23 +1310,23 @@ class LocalType(object):
     #     self.sclass = None
     #     self.depends = []
 
-
-    def find_type_by_name(self, name):
+    @staticmethod
+    def find_type_by_name(name):
         my_ti = cvar.idati
         ordinal = get_type_ordinal(my_ti,name)
 
     def GetTypeString(self):
-        ti = idaapi.cvar.idati
+        ti = idaapi.get_idati()
         #print "GetTypeString: name %s"%self.name
         the_bytes = []
         for thing in self.parsedList:
             if type(thing) == int:  # if it's a byte, just put it back in
                 the_bytes.append(thing)
             elif len(thing) == 1:
-                if thing.keys()[0] == "local_type":
+                if list(thing.keys())[0] == "local_type":
                     the_bytes.append(ord("="))  # a type starts with =
                 #print type(thing["local_type"]),thing["local_type"]
-                ordinal = get_type_ordinal(ti,thing.values()[0].encode("ascii"))  # get the ordinal of the Local Type based on its name
+                ordinal = idaapi.get_type_ordinal(ti,list(thing.values())[0])  # get the ordinal of the Local Type based on its name
                 if ordinal > 0:
                     the_bytes = the_bytes + encode_ordinal_to_string(ordinal)
                 else:
@@ -1314,7 +1338,7 @@ class LocalType(object):
 
     def ParseTypeString(self,type_string):
         if fDebug ==True:
-            pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+            pydevd_pycharm.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         tp = TinfoReader(type_string)
         # print idc_print_type(type_, fields, "fun_name", 0)
         # print type_.encode("string_escape")
@@ -1331,8 +1355,8 @@ class LocalType(object):
                 if tp.pos < len(tp.tp) and len(tp.tp) - (tp.pos + ordinal_length - 1) >= 0:
                     number_marker = tp.read_byte()
                     if number_marker == ord("#"):  # this is a Local Type referred to by its ordinal
-                        ordinal = decode_ordinal_string(struct.pack("B",ordinal_length) + "#" + tp.read_string(ordinal_length-2))
-                        t = GetLocalTypeName(ordinal)
+                        ordinal = decode_ordinal_string(struct.pack("B",ordinal_length) + b"#" + tp.read_string(ordinal_length-2))
+                        t = idc.get_numbered_type_name(ordinal)
                         output.append({"local_type": t})
                         if t not in self.depends:
                             self.depends.append(t)
@@ -1346,8 +1370,8 @@ class LocalType(object):
             elif a_byte == ord("#") and ((len(output) >= 4 and output[-4:-1] == [0x0A,0x0D,0x01]) or (len(output) >= 3 and  output[-3:-1] == [0x0D,0x01])):
                 ordinal_length = output[-1]
                 output.pop(-1)
-                ordinal = decode_ordinal_string(struct.pack("B", ordinal_length) + "#" + tp.read_string(ordinal_length - 2))
-                t = GetLocalTypeName(ordinal)
+                ordinal = decode_ordinal_string(struct.pack("B", ordinal_length) + b"#" + tp.read_string(ordinal_length - 2))
+                t = idc.get_numbered_type_name(ordinal)
                 output.append({"rare_local_type": t})
                 if t not in self.depends:
                     self.depends.append(t)
@@ -1361,27 +1385,27 @@ class LocalType(object):
     def to_dict(self):
         ser_dic = collections.OrderedDict()
         ser_dic['name'] = self.name
-        ser_dic['TypeString'] = self.TypeString.encode("base64")
-        ser_dic['TypeFields'] = self.TypeFields.encode("base64")
-        ser_dic['cmt'] = self.cmt.encode("base64")
-        ser_dic['fieldcmts'] = self.fieldcmts.encode("base64")
-        ser_dic['sclass'] = pickle.dumps(self.sclass).encode("base64")
-        ser_dic['parsedList'] = pickle.dumps(self.parsedList).encode("base64")
-        ser_dic['depends'] = pickle.dumps(self.depends).encode("base64")
-        ser_dic['depends_ordinals'] = pickle.dumps(self.depends_ordinals).encode("base64")
+        ser_dic['TypeString'] = base64.b64encode(self.TypeString)
+        ser_dic['TypeFields'] = base64.b64encode(self.TypeFields)
+        ser_dic['cmt'] = base64.b64encode(self.cmt)
+        ser_dic['fieldcmts'] = base64.b64encode(self.fieldcmts)
+        ser_dic['sclass'] = base64.b64encode(pickle.dumps(self.sclass))
+        ser_dic['parsedList'] = base64.b64encode(pickle.dumps(self.parsedList))
+        ser_dic['depends'] = base64.b64encode(pickle.dumps(self.depends))
+        ser_dic['depends_ordinals'] = base64.b64encode(pickle.dumps(self.depends_ordinals))
         ser_dic['flags'] = self.flags
         return ser_dic
 
     def to_iter(self):
-        return self.name, self.TypeString.encode("base64"), self.TypeFields.encode("base64"),self.cmt.encode("base64"),self.fieldcmts.encode("base64"), pickle.dumps(self.sclass).encode("base64"), pickle.dumps(self.parsedList).encode("base64"), pickle.dumps(self.depends).encode("base64"), pickle.dumps(self.depends_ordinals).encode("base64"), self.flags
+        return self.name, base64.b64encode(self.TypeString), base64.b64encode(self.TypeFields),base64.b64encode(self.cmt),base64.b64encode(self.fieldcmts), base64.b64encode(pickle.dumps(self.sclass)), base64.b64encode(pickle.dumps(self.parsedList)), base64.b64encode(pickle.dumps(self.depends)), base64.b64encode(pickle.dumps(self.depends_ordinals)), self.flags
     
     def from_dict(self,ser_dic):
-        self.name = ser_dic['name'].encode("ascii")
-        self.TypeString = ser_dic['TypeString'].encode("ascii").decode("base64")
+        self.name = ser_dic['name']
+        self.TypeString = base64.b64decode(ser_dic['TypeString'])
         # print "from_dict; TypeString = %s"%self.TypeString
-        self.TypeFields = ser_dic['TypeFields'].encode("ascii").decode("base64")
-        self.cmt = ser_dic['cmt'].encode("ascii").decode("base64")
-        self.fieldcmts = ser_dic['fieldcmts'].encode("ascii").decode("base64")
+        self.TypeFields = base64.b64decode(ser_dic['TypeFields'])
+        self.cmt = base64.b64decode(ser_dic['cmt'])
+        self.fieldcmts = base64.b64decode(ser_dic['fieldcmts'])
         self.sclass = int(ser_dic['sclass'])
         self.parsedList = ser_dic['parsedList']
         self.depends = ser_dic['depends']
@@ -1405,10 +1429,10 @@ class LocalType(object):
         return self.print_type() == t.print_type()
 
     def is_complex(self):
-        return ord(self.TypeString[0]) & TYPE_BASE_MASK == BT_COMPLEX
+        return self.TypeString[0] & TYPE_BASE_MASK == BT_COMPLEX
 
     def is_typedef(self):
-        return ord(self.TypeString[0])&TYPE_FULL_MASK == BTF_TYPEDEF
+        return self.TypeString[0]&TYPE_FULL_MASK == BTF_TYPEDEF
 
     def is_sue(self):
         return self.is_complex() and not self.is_typedef()
@@ -1420,32 +1444,32 @@ class LocalType(object):
         return self.is_complex() and not self.is_typedef() and not self.is_enum()
 
     def is_paf(self):
-        t = ord(self.TypeString[0])&TYPE_BASE_MASK
+        t = self.TypeString[0]&TYPE_BASE_MASK
         return (t >= BT_PTR )&(t <= BT_FUNC)
 
     def is_func(self):
-        return ord(self.TypeString[0])&TYPE_BASE_MASK == BT_FUNC
+        return self.TypeString[0]&TYPE_BASE_MASK == BT_FUNC
 
     def is_struct(self):
-        return ord(self.TypeString[0])&TYPE_FULL_MASK == BTF_STRUCT
+        return self.TypeString[0]&TYPE_FULL_MASK == BTF_STRUCT
 
     def is_union(self):
-        return ord(self.TypeString[0])&TYPE_FULL_MASK == BTF_UNION
+        return self.TypeString[0]&TYPE_FULL_MASK == BTF_UNION
 
     def is_enum(self):
-        return ord(self.TypeString[0])&TYPE_FULL_MASK == BTF_ENUM
+        return self.TypeString[0]&TYPE_FULL_MASK == BTF_ENUM
 
     def is_ptr(self):
-        return  ord(self.TypeString[0])&TYPE_FULL_MASK == BT_PTR
+        return  self.TypeString[0]&TYPE_FULL_MASK == BT_PTR
 
 
     @staticmethod
     def is_complex_static(TypeString):
-        return ord(TypeString[0]) & TYPE_BASE_MASK == BT_COMPLEX
+        return TypeString[0] & TYPE_BASE_MASK == BT_COMPLEX
 
     @staticmethod
     def is_typedef_static(TypeString):
-        return ord(TypeString[0])&TYPE_FULL_MASK == BTF_TYPEDEF
+        return TypeString[0]&TYPE_FULL_MASK == BTF_TYPEDEF
 
     @staticmethod
     def is_sue_static(TypeString):
@@ -1461,29 +1485,29 @@ class LocalType(object):
 
     @staticmethod
     def is_paf_static(TypeString):
-        t = ord(TypeString[0])&TYPE_BASE_MASK
+        t = TypeString[0]&TYPE_BASE_MASK
         return (t >= BT_PTR )&(t <= BT_FUNC)
 
     @staticmethod
     def is_func_static(TypeString):
-        return ord(TypeString[0])&TYPE_BASE_MASK == BT_FUNC
+        return TypeString[0]&TYPE_BASE_MASK == BT_FUNC
 
     @staticmethod
     def is_struct_static(TypeString):
-        return ord(TypeString[0])&TYPE_FULL_MASK == BTF_STRUCT
+        return TypeString[0]&TYPE_FULL_MASK == BTF_STRUCT
 
     @staticmethod
     def is_union_static(TypeString):
-        return ord(TypeString[0])&TYPE_FULL_MASK == BTF_UNION
+        return TypeString[0]&TYPE_FULL_MASK == BTF_UNION
 
     @staticmethod
     def is_enum_static(TypeString):
-        return ord(TypeString[0])&TYPE_FULL_MASK == BTF_ENUM
+        return TypeString[0]&TYPE_FULL_MASK == BTF_ENUM
 
 
 
 
-class IDATypeStoragePlugin(plugin_t):
+class IDATypeStoragePlugin(idaapi.plugin_t):
 
     flags = idaapi.PLUGIN_FIX
     comment = "Single repository for types."

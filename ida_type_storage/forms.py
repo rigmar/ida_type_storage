@@ -1,10 +1,18 @@
+from __future__ import division
+from __future__ import print_function
+from builtins import str
+from builtins import range
+from past.utils import old_div
+from builtins import object
 import sys
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
+from PyQt5 import QtGui, QtCore, QtWidgets
 from difflib import *
 import idc
 from idaapi import *
+import ida_kernwin
 import idaapi
 qtMode = 3
 from collections import OrderedDict
@@ -12,7 +20,7 @@ from collections import OrderedDict
 fSQL = True
 
 def find_ida_dir():
-    return idc.GetIdaDirectory()
+    return idc.idadir()
 
 
 def format(color, style=''):
@@ -571,15 +579,12 @@ class DublicateResolverUI(QDialog):
     def closeEvent(self, QCloseEvent):
         edit = None
         if self.sel == 0:
-            edit = self.textEdit2
+            self.selText = self.textEdit2.edit.toPlainText()
         elif self.sel == 1:
-            edit = self.textEdit1
+            self.selText = self.textEdit1.edit.toPlainText()
         elif self.sel == 2:
-            edit = self.textEdit3
-        if edit is not None:
-            for lineNum, line, lnType in edit.lines.values():
-                if line != "\n":
-                    self.selText += line
+            self.selText = self.textEdit3.edit.toPlainText()
+
     @staticmethod
     def GetDiff(s1,s2):
         d = Differ()
@@ -661,18 +666,13 @@ class DuplicateResolverForm(Form):
         self.Close(1)
 
 
-class TypeListChooser(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
+class TypeListChooser(ida_kernwin.Choose):
     """
     A simple chooser to be used as an embedded chooser
     """
     def __init__(self, title, type_list, flags=0, obj=None):
-        if ida_pro.IDA_SDK_VERSION < 700:
-            Choose2.__init__(self,
-                         title,
-                         [ ["Ord", 5], ["Name", 40] ],
-                         embedded=True, width=150, height=40, flags=flags)
-        else:
-            Choose.__init__(self,
+
+        Choose.__init__(self,
                          title,
                          [ ["Ord", 5], ["Name", 40] ],
                          embedded=True, width=150, height=40, flags=flags)
@@ -711,20 +711,14 @@ class TypeListChooser(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
         self.selected = []
         #print sel_list
         for n in sel_list:
-            self.selected.append(self.items[n - 1][1]) if ida_pro.IDA_SDK_VERSION < 700 else self.selected.append(self.items[n][1])
+            self.selected.append(self.items[n][1])
         #print self.selected
 
-class TypeListChooser2(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
+class TypeListChooser2(ida_kernwin.Choose):
 
-    def __init__(self, title, type_list, flags=Choose2.CH_MULTI):
-        if ida_pro.IDA_SDK_VERSION < 700:
-            Choose2.__init__(
-            self,
-            title,
-            [ ["Num", 5], ["Name", 30] ],
-            flags = flags)
-        else:
-            Choose.__init__(
+    def __init__(self, title, type_list, flags=ida_kernwin.Choose.CH_MULTI):
+
+        Choose.__init__(
                 self,
                 title,
                 [ ["Num", 5], ["Name", 30] ],
@@ -740,7 +734,7 @@ class TypeListChooser2(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
         # print("created %s" % str(self))
 
     def OnClose(self):
-        print ("closed", str(self))
+        print(("closed", str(self)))
 
     # def OnEditLine(self, n):
     #     self.items[n][1] = self.items[n][1] + "*"
@@ -805,7 +799,7 @@ class TypeListChooser2(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
 
 
 
-class TypeChooseForm(Form):
+class TypeChooseForm(ida_kernwin.Form):
     form_text_fromIDB = """Import types from current IDB
     {FormChangeCb}
     <Types for choose:{cEChooser}>
@@ -823,9 +817,9 @@ class TypeChooseForm(Form):
 
     def __init__(self,type_list, fFromIDB=True, db=None):
 
-        self.EChooser = TypeListChooser("Types:",type_list,flags=Choose2.CH_MULTI)
+        self.EChooser = TypeListChooser("Types:",type_list,flags=ida_kernwin.Choose.CH_MULTI)
         self.typeList = type_list
-        self.curTypes = type_list if type(type_list) == list else type_list.keys()
+        self.curTypes = type_list if type(type_list) == list else list(type_list.keys())
         self.fFromIDB = fFromIDB
         self.db = db
         if self.fFromIDB:
@@ -853,7 +847,7 @@ class TypeChooseForm(Form):
         self.cFilters.value = 7
         # print map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)),x],self.typeList.keys())
         if self.fFromIDB:
-            self.EChooser.items = map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)),x],self.typeList.keys())
+            self.EChooser.items = [[str(get_type_ordinal(idaapi.cvar.idati,x)),x] for x in list(self.typeList.keys())]
         ok = self.Execute()
         #print "Ok = %d"%ok
         if ok == 1:
@@ -872,13 +866,13 @@ class TypeChooseForm(Form):
         if fid == self.rStndTypes.id:
             if self.fFromIDB:
                 if self.GetControlValue(self.rStndTypes):
-                    self.curTypes = self.typeList.keys()
+                    self.curTypes = list(self.typeList.keys())
                 else:
                     self.curTypes = []
-                    for t in self.typeList.values():
+                    for t in list(self.typeList.values()):
                         if not t.is_standard():
                             self.curTypes.append(t.name)
-                self.EChooser.items = map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)), x], self.curTypes)
+                self.EChooser.items = [[str(get_type_ordinal(idaapi.cvar.idati,x)), x] for x in self.curTypes]
                     # self.EChooser.make_items(["AAAA","BBBBB","FFFFFF"])
                     # self.EChooser.Embedded()
             else:
@@ -889,8 +883,8 @@ class TypeChooseForm(Form):
         if fid == self.cFilters.id:
             if self.fFromIDB:
                 val = self.GetControlValue(self.cFilters)
-                filtered = filter(lambda x: ((val&1 and (self.typeList[x].is_struct()or self.typeList[x].is_union())) or (val&2 and self.typeList[x].is_enum()) or (val&4 and not self.typeList[x].is_sue())),self.curTypes)
-                self.EChooser.items = map(lambda x: [str(get_type_ordinal(idaapi.cvar.idati,x)), x], filtered)
+                filtered = [x for x in self.curTypes if ((val&1 and (self.typeList[x].is_struct()or self.typeList[x].is_union())) or (val&2 and self.typeList[x].is_enum()) or (val&4 and not self.typeList[x].is_sue()))]
+                self.EChooser.items = [[str(get_type_ordinal(idaapi.cvar.idati,x)), x] for x in filtered]
             else:
                 # print self.GetControlValue(self.cFilters)
                 # print self.GetControlValue(self.cFilters) | (self.GetControlValue(self.rStndTypes) << 3)
@@ -902,18 +896,13 @@ class TypeChooseForm(Form):
         return 1
 
 
-class ProjectChooser(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
+class ProjectChooser(ida_kernwin.Choose):
     """
     A simple chooser to be used as an embedded chooser
     """
     def __init__(self, title, name_list, db = None, flags=ida_kernwin.Choose.CH_CAN_DEL|ida_kernwin.Choose.CH_CAN_REFRESH, obj = None):
-        if ida_pro.IDA_SDK_VERSION < 700:
-            Choose2.__init__(self,
-                             title,
-                             [ ["Project name", 40] ],
-                             embedded=True, width=40, height=10, flags=flags)
-        else:
-            Choose.__init__(self,
+
+        Choose.__init__(self,
                              title,
                              [ ["Project name", 40] ],
                              embedded=True, width=40, height=10, flags=flags)
@@ -958,15 +947,11 @@ class ProjectChooser(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
     def OnSelectionChange(self, sel_list):
         self.selected = []
         # print sel_list
-        if ida_pro.IDA_SDK_VERSION < 700:
-            for sel in sel_list:
-                self.selected.append(self.items[sel-1][0])
+        if type(sel_list) == int:
+            self.selected.append(self.items[sel_list][0])
         else:
-            if type(sel_list) == int:
-                self.selected.append(self.items[sel_list][0])
-            else:
-                for sel in sel_list:
-                    self.selected.append(self.items[sel][0])
+            for sel in sel_list:
+                self.selected.append(self.items[sel][0])
 
     def OnDeleteLine(self, n):
         # print("del %d " % n)
@@ -991,7 +976,7 @@ class ProjectChooser(Choose2 if ida_pro.IDA_SDK_VERSION < 700 else Choose):
     #     #print self.selected
 
 
-class ChooseProject(Form):
+class ChooseProject(ida_kernwin.Form):
     def __init__(self,coll_list,db = None):
         self.__n = 0
         self.selected = None
@@ -1025,7 +1010,7 @@ Choose project for connect
             self.SetFocusedField(self.EChooser)
 
     def onNewProject(self,code = 0):
-        s = idc.AskStr("", "Enter new project name:")
+        s = ida_kernwin.ask_str("", 0,"Enter new project name:")
         self.EChooser.selected = [s]
         self.Close(1)
 
@@ -1048,7 +1033,7 @@ Choose project for connect
         return 1
 
 
-class ConnectToSQLBase(Form):
+class ConnectToSQLBase(ida_kernwin.Form):
     def __init__(self,addr):
         self.storage = None
         self.iBaseFile = None
@@ -1071,7 +1056,7 @@ class ConnectToSQLBase(Form):
 
 
 
-class ConnectToBase(Form):
+class ConnectToBase(ida_kernwin.Form):
     def __init__(self,addr):
         self.storage = None
         self.iServerIP = None
