@@ -371,7 +371,7 @@ class IdaTypeStorage(object):
             if  not self.ConnectToStorage():
                 return
         self.Initialise()
-        self.init_storage_cache()
+        # self.init_storage_cache()
         sorted_list = self.resolveDependencies(self.storage.GetAllNames())
         # c_compact_numbered_types(my_til, 1, 0, 0)
         for t in sorted_list:
@@ -635,7 +635,7 @@ class IdaTypeStorage(object):
         ret = []
         if self.storage_types_cache:
             for name in typesListNames:
-                if name in typesListNames:
+                if name in self.storage_types_cache:
                     ret.append(self.storage_types_cache[name])
         else:
             ret = self.getFromStorage(typesListNames)
