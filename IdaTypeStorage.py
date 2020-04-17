@@ -355,14 +355,16 @@ class IdaTypeStorage(object):
             act.unregisterAction()
 
     def doPushAll(self,ctx):
-        # if fDebug ==True:
-        #     pydevd.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
+        print("doPushAll start")
+        if fDebug ==True:
+            pydevd_pycharm.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
         self.Initialise()
         #sorted_list = self.resolveDependenciesForExport(self.LocalTypeMap.values())
         self.saveToStorage(list(self.LocalTypeMap.values()), True)
+        print("All types was pushed successfuly!")
 
     def doPullAll(self,ctx):
         # if fDebug ==True:
@@ -386,7 +388,7 @@ class IdaTypeStorage(object):
         if self.storage is None:
             if  not self.ConnectToStorage():
                 return
-
+        self.Initialise()
         sel_list = self.ChooseTypesFromStorage()
         if sel_list is not None and len(sel_list) > 0:
             t_start = time.time()
@@ -602,7 +604,7 @@ class IdaTypeStorage(object):
                         t1 = t
                     else:
                         t1 = self.DuplicateResolver(tp,t,True)
-                    if not tp.isEqual(t1):
+                    if not t1.isEqual(tp):
                         self.storage.updateType(t1.name,t1)
                         #self.cachedStorage[t1.name] = t1
                         #print "Edited type updated"
@@ -1426,7 +1428,11 @@ class LocalType(object):
         return self.flags&8 == 8
 
     def isEqual(self,t):
-        return self.print_type() == t.print_type()
+        if self.parsedList == t.parsedList \
+                and self.TypeFields == t.TypeFields \
+                and self.name == t.name:
+            return True
+        return False
 
     def is_complex(self):
         return self.TypeString[0] & TYPE_BASE_MASK == BT_COMPLEX
