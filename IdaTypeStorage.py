@@ -448,10 +448,9 @@ class IdaTypeStorage(object):
         c_compact_numbered_types(my_til, 1, 0, 0)
     
     def InitTypeLibsList(self):
-        idati = idaapi.cvar.idati
         self.list_type_library = []
-        for idx in range(idaapi.cvar.idati.nbases):
-            type_library = idaapi.cvar.idati.base(idx)  # idaapi.til_t type
+        for idx in range(idaapi.get_idati().nbases):
+            type_library = idaapi.get_idati().base(idx)  # idaapi.til_t type
             self.list_type_library.append((type_library, type_library.name, type_library.desc))
 
     def isStanadardType(self,name):
@@ -471,19 +470,18 @@ class IdaTypeStorage(object):
         self.LocalTypeMap = collections.OrderedDict()
         self.FreeOrdinals = []
         self.OrdinalsMap = collections.OrderedDict()
-        for i in range(1, idc.get_ordinal_qty()):
-            name = idc.get_numbered_type_name(i)
-            assert name
+        for i in range(1, ida_typeinf.get_ordinal_qty(ida_typeinf.get_idati())):
+            name = ida_typeinf.get_numbered_type_name(ida_typeinf.get_idati(),i)
             if name:
                 #todo: doing something with empty and error types
                 
                 # tif = tinfo_t()
-                # rc = tif.get_numbered_type(idaapi.get_idati(),i)
+                # rc = tif.get_numbered_type(idaapi.get_idati(),i)b
                 # assert tif.get_size()&0xFFFFFFFF != BADADDR
                 # if tif.get_size()&0xFFFFFFFF != BADADDR:
                     #c_compact_numbered_types(my_til, 1, 0, 0)
-                ret = get_numbered_type(
-                    idaapi.get_idati(),
+                ret = ida_typeinf.get_numbered_type(
+                    ida_typeinf.get_idati(),
                     i
                 )
                 typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass = ret
@@ -528,7 +526,7 @@ class IdaTypeStorage(object):
         if self.getTypeOrdinal(type_obj.name) != 0:
             idx = self.getTypeOrdinal(type_obj.name)
             t = self.ImportLocalType(idx)
-            if (t.TypeFields is None or t.TypeFields == "") and t.is_sue():
+            if not t.TypeFields and t.is_sue():
                 fReplace = True
             if t.isEqual(type_obj) or type_obj.TypeString == wrapperTypeString:
                 return 1
@@ -564,8 +562,8 @@ class IdaTypeStorage(object):
 
     def getTypeOrdinal(self,name):
         my_ti = get_my_ti()
-        my_ti = idaapi.cvar.idati
-        return get_type_ordinal(my_ti,name)
+        my_ti = ida_typeinf.get_idati()
+        return ida_typeinf.get_type_ordinal(my_ti,name)
 
     def ChooseLocalTypes(self):
         if len(self.LocalTypeMap) == 0:
@@ -825,7 +823,7 @@ class IdaTypeStorage(object):
 
     def InsertTypeOld(self, type_obj, fReplace=False):
         my_ti = get_my_ti()
-        my_ti = idaapi.cvar.idati
+        my_ti = idaapi.get_idati()
         # print "InsertType:",type(type_obj.name), type_obj.name
         # print "InsertType: idx = %d"%self.getTypeOrdinal(type_obj.name.encode("ascii"))
         # print "InsertType: idx = %d"%self.get_type_ordinal(my_ti,type_obj.name.encode("ascii"))
@@ -910,7 +908,7 @@ class IdaTypeStorage(object):
 
     def InitialiseOld(self):
         global my_til
-        my_ti = idaapi.cvar.idati
+        my_ti = idaapi.get_idati()
         self.InitTypeLibsList()
         # compact_numbered_types(my_til)
         self.LocalTypeMap = collections.OrderedDict()
@@ -1314,8 +1312,8 @@ class LocalType(object):
 
     @staticmethod
     def find_type_by_name(name):
-        my_ti = cvar.idati
-        ordinal = get_type_ordinal(my_ti,name)
+        my_ti = ida_typeinf.get_idati()
+        ordinal = ida_typeinf.get_type_ordinal(my_ti,name)
 
     def GetTypeString(self):
         ti = idaapi.get_idati()
@@ -1328,7 +1326,7 @@ class LocalType(object):
                 if list(thing.keys())[0] == "local_type":
                     the_bytes.append(ord("="))  # a type starts with =
                 #print type(thing["local_type"]),thing["local_type"]
-                ordinal = idaapi.get_type_ordinal(ti,list(thing.values())[0])  # get the ordinal of the Local Type based on its name
+                ordinal = ida_typeinf.get_type_ordinal(ti,list(thing.values())[0])  # get the ordinal of the Local Type based on its name
                 if ordinal > 0:
                     the_bytes = the_bytes + encode_ordinal_to_string(ordinal)
                 else:
@@ -1342,6 +1340,7 @@ class LocalType(object):
         if fDebug ==True:
             pydevd_pycharm.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
         tp = TinfoReader(type_string)
+        ti = idaapi.get_idati()
         # print idc_print_type(type_, fields, "fun_name", 0)
         # print type_.encode("string_escape")
         output = []
