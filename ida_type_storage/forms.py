@@ -280,7 +280,7 @@ class LNTextEdit(QtWidgets.QFrame):
                     painter.setFont(font)
 
                 # Draw the line number right justified at the position of the line.
-                paint_rect = QtCore.QRect(0, block_top, number_bar.width(), font_metrics.height())
+                paint_rect = QtCore.QRect(0, int(block_top), number_bar.width(), font_metrics.height())
                 painter.drawText(paint_rect, QtCore.Qt.AlignRight, unicode(line_count))
 
                 block = block.next()
@@ -494,7 +494,7 @@ class DublicateResolverUI(QDialog):
         #print mainGeo
 
         #print QCoreApplication.instance().desktop().screenGeometry()
-        self.setMinimumSize(mainGeo.width()/4*3,mainGeo.height()/4*3)
+        self.setMinimumSize(mainGeo.width()//4*3,mainGeo.height()//4*3)
         #print self.size()
         #self.resize(QSize(rec.width() - 400, rec.height() - 400))
         # self.setGeometry(600, 600, 600, 600)

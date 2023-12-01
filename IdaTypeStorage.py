@@ -4,6 +4,8 @@ import base64
 from builtins import chr
 from builtins import range
 from builtins import object
+
+import ida_kernwin
 from idaapi import *
 from idc import *
 import time
@@ -149,6 +151,18 @@ c_set_numbered_type.argtypes = [
     ctypes.POINTER(ctypes.c_ulong),                     #const sclass_t *sclass=NULL
 ]
 
+
+class ui_hooks(ida_kernwin.UI_Hooks):
+    
+    def ready_to_run(self, *args) -> "void":
+        if "type_string_parser" in globals():
+            global type_string_parser
+            if type_string_parser.add_menu_items():
+                print("Failed to initialize IDA Type Storage.")
+                type_string_parser.del_menu_items()
+                del type_string_parser
+            else:
+                print("Initialized IDA Type Storage.")
 
 
 my_ti = None
@@ -339,13 +353,14 @@ class IdaTypeStorage(object):
 
 
     def add_menu_items(self):
-        if not create_menu("TypeStoragePlugin:Menu", "Type storage", "Options"): return 1
+        ret = ida_kernwin.create_menu("TypeStoragePlugin:Menu", "Type storage","Options")
+        if not ret: return 1
 
-        self.actions.append(ActionWrapper("TypeStoragePlugin:doImportTypes","Import types from storage","Shift+i","Type storage",self.doImportTypes))
-        self.actions.append(ActionWrapper("TypeStoragePlugin:doExportTypes","Export types to storage","Shift+g","Type storage",self.doExportTypes))
-        self.actions.append(ActionWrapper("TypeStoragePlugin:ReconnectToStorage","Reconnect","","Type storage",self.ReconnectToStorage))
-        self.actions.append(ActionWrapper("TypeStoragePlugin:doPullAll","Pull all types from storage","Shift-Alt-i","Type storage",self.doPullAll))
-        self.actions.append(ActionWrapper("TypeStoragePlugin:doPushAll", "Push all types to storage", "Shift-Alt-g", "Type storage",self.doPushAll))
+        self.actions.append(ActionWrapper("TypeStoragePlugin:doImportTypes","Import types from storage","Shift+i","Type",self.doImportTypes))
+        self.actions.append(ActionWrapper("TypeStoragePlugin:doExportTypes","Export types to storage","Shift+g","Type",self.doExportTypes))
+        self.actions.append(ActionWrapper("TypeStoragePlugin:ReconnectToStorage","Reconnect","","Type",self.ReconnectToStorage))
+        self.actions.append(ActionWrapper("TypeStoragePlugin:doPullAll","Pull all types from storage","Shift-Alt-i","Type",self.doPullAll))
+        self.actions.append(ActionWrapper("TypeStoragePlugin:doPushAll", "Push all types to storage", "Shift-Alt-g", "Type",self.doPushAll))
         # self.actions.append(ActionWrapper("TypeStoragePlugin:doCompactNumberedTypes", "Compact local types ordinals", "", "Type storage",self.doCompactNumberedTypes))
 
         return 0
@@ -1522,22 +1537,18 @@ class IDATypeStoragePlugin(idaapi.plugin_t):
 
     def init(self):
         # Only Intel x86/x86-64 are supported
-        #print "Enter IDATypeStorage.init()"
+        print ("Enter IDATypeStorage.init()")
         global type_string_parser
         #type_string_parser = None
+        self.hook =  ui_hooks()
+        self.hook.hook()
 
         # Check if already initialized
         #print not 'type_string_parser' in globals()
         if not 'type_string_parser' in globals():
 
             type_string_parser = IdaTypeStorage()
-            if type_string_parser.add_menu_items():
-                print ("Failed to initialize IDA Type Storage.")
-                type_string_parser.del_menu_items()
-                del type_string_parser
-                return idaapi.PLUGIN_SKIP
-            else:
-                print("Initialized IDA Type Storage.")
+
 
         return idaapi.PLUGIN_KEEP
 
@@ -1547,6 +1558,7 @@ class IDATypeStoragePlugin(idaapi.plugin_t):
 
     def term(self):
         global type_string_parser
+        self.hook.unhook()
         if 'type_string_parser' in globals() and type_string_parser is not None:
             if type_string_parser.storage is not None:
                 type_string_parser.storage.close_storage()
