@@ -6,6 +6,7 @@ from builtins import range
 from builtins import object
 
 import ida_kernwin
+import ida_typeinf
 from idaapi import *
 from idc import *
 import time
@@ -20,16 +21,14 @@ import struct
 import collections
 
 #from ida_type_storage.forms import DublicateResolverUI
-from ida_type_storage.forms import DublicateResolverUI, ConnectToSQLBase, ChooseProject, ConnectToBase, TypeChooseForm
+from ida_type_storage.forms import DublicateResolverUI, ConnectToSQLBase, ChooseProject, TypeChooseForm
+from ida_type_storage.utils import get_type_dependencies
 
-fSQL = True
-if fSQL:
-    import sqlite3
-else:
-    from pymongo import *
-    from bson import *
 
-fDebug = False
+import sqlite3
+
+
+fDebug = True
 if fDebug:
     import pydevd_pycharm
 
@@ -308,43 +307,21 @@ class IdaTypeStorage(object):
 
 
     def ConnectToStorage(self):
-        if fSQL:
-            f = ConnectToSQLBase(self.storageAddr)
-            r = f.Go()
+        f = ConnectToSQLBase(self.storageAddr)
+        r = f.Go()
+        f.Free()
+        if r:
+            self.storageAddr = r
+            db = Storage_sqlite(r)
+            f = ChooseProject(db.GetAllProjects(),db)
+            r1 = f.Go()
             f.Free()
-            if r:
-                self.storageAddr = r
-                db = Storage_sqlite(r)
-                f = ChooseProject(db.GetAllProjects(),db)
-                r1 = f.Go()
-                f.Free()
-                if r1 is not None:
-                    db.connect(r1)
-                    self.storage = db
-                    return True
+            if r1 is not None:
+                db.connect(r1)
+                self.storage = db
+                return True
 
-        else:
-            f = ConnectToBase(self.storageAddr)
-            r = f.Go()
-            f.Free()
-            if r:
-                serverIP, port = r
-                port = int(port)
-                self.storageAddr = (serverIP,port)
-                try:
-                    client_try = MongoClient(serverIP,port)
-                    db = client_try['LocalTypesStorage']
-                    coll_names = db.collection_names(include_system_collections = False)
-                    client_try.close()
-                    f = ChooseProject(coll_names,db)
-                    r1 = f.Go()
-                    f.Free()
-                    #print r1
-                    if r1 is not None:
-                        self.storage = Storage(serverIP,port,r1)
-                        return True
-                except:
-                    Warning("Could not connect to the storage")
+        
         return False
         #     else:
         #         raise
@@ -1194,95 +1171,6 @@ class Storage_sqlite(object):
 
 
 
-class Storage(object):
-    def __init__(self,ip = 'localhost',port = 27017 ,target_collection = "main_storage"):
-        self.client = MongoClient(ip, port)
-        self.db = self.client["LocalTypesStorage"]
-        self.collection = self.db[target_collection]
-        #self.cache ={}
-
-    def putToStorage(self,t):
-        self.collection.insert_one(t.to_dict())
-        res = self.collection.find({'name':t.name})
-        if res.count() != 1:
-            #self.cache[t.name] = res[0]
-        # else:
-            raise NameError("putToStorage: Putting error. Count = %d. Type %s"%(res.count(),t.name))
-
-
-    def clearStorage(self):
-        self.collection.drop()
-
-    def close_storage(self):
-        self.client.close()
-
-    def checkEquality(self,t):
-        ser_dic = t.to_dict()
-        res = self.collection.find({'name':ser_dic['name']})
-        if res.count() == 1:
-            t1 = res[0]
-            if t1['parsedList'] == ser_dic['parsedList']:
-                if t1['TypeFields'] == ser_dic['TypeFields']:
-                    if t1['cmt'] == ser_dic['cmt']:
-                        if t1['fieldcmts'] == ser_dic['fieldcmts']:
-                            return True
-        elif res.count() == 0:
-            return False
-        else:
-            raise NameError("checkEquality: Type duplication or error. Count = %d"%(res.count()))
-        return False
-
-    def getFromStorage(self,name):
-        # if name in self.cache:
-        #     return LocalType().from_dict(self.cache[name])
-        res = self.collection.find({"name":name})
-        if res.count() == 1:
-            #self.cache[name] = res[0]
-            return LocalType().from_dict(res[0])
-        elif res.count() == 0:
-            return None
-        else:
-            raise NameError("getFromStorage: Type duplication or error. Count = %d"%(res.count()))
-
-    def isExist(self,name):
-        res = self.collection.find({"name":name})
-        if res.count() == 1:
-            return True
-        elif res.count() == 0:
-            return False
-        else:
-            raise NameError("isExist: Type duplication or error. Count = %d"%(res.count()))
-
-    def updateType(self,name,t):
-        ret = self.collection.replace_one({'name':name},t.to_dict())
-        if ret.matched_count == 1:
-            #self.cache[name] = t.to_dict()
-            return True
-        elif ret.matched_count == 0:
-            return False
-        else:
-            raise NameError("updateType: Type duplication or error. Count = %d"%(ret.count()))
-
-    def GetAllNames(self):
-        names = []
-        # if len(self.cache) == 0:
-        for t in self.collection.find():
-            names.append(t['name'])
-                # self.cache[t['name']] = t
-        # else:
-        #     for name in self.cache.keys():
-        #         names.append(name)
-        return names
-
-    def GetAllTypes(self):
-        names = self.GetAllNames()
-        types = []
-        for name in names:
-            types.append(self.getFromStorage(name))
-        return types
-
-    def deleteProject(self,name):
-        self.db[name].drop()
 
 class LocalType(object):
 
@@ -1294,19 +1182,28 @@ class LocalType(object):
     # }
 
     def __init__(self, name=b"", TypeString=b"", TypeFields=b"", cmt=b"", fieldcmts=b"", sclass=0, parsedList=None, depends=None, isStandard=False):
-        self.TypeString = TypeString
+        
+        self.depends = [] if depends is None else depends
+        if TypeString != b"":
+            tif = ida_typeinf.tinfo_t()
+            tif.deserialize(ida_typeinf.get_idati(), TypeString, TypeFields)
+            ida_typeinf.replace_ordinal_typerefs(ida_typeinf.get_idati(), tif)
+
+            self.depends = get_type_dependencies(name,tif)
+            self.TypeString = tif.serialize()[0]
+        else:
+            self.TypeString = TypeString
         self.TypeFields = TypeFields
         self.cmt = cmt
         self.fieldcmts = fieldcmts if type(fieldcmts) == bytes else fieldcmts.encode("utf-8")
         self.sclass = sclass
         self.name = name
         self.parsedList = [] if parsedList is None else parsedList
-        self.depends = [] if depends is None else depends
         self.depends_ordinals = []
         self.flags = 8 if isStandard else 0
         # print "Type string: %s"%self.TypeString.encode("HEX")
-        if self.TypeString != b"":
-            self.parsedList = self.ParseTypeString(self.TypeString)
+        # if self.TypeString != b"":
+        #     self.parsedList = self.ParseTypeString(self.TypeString)
         if self.TypeString != b"":
             if self.is_su():
                 self.flags |= 1
@@ -1331,72 +1228,17 @@ class LocalType(object):
         ordinal = ida_typeinf.get_type_ordinal(my_ti,name)
 
     def GetTypeString(self):
-        ti = idaapi.get_idati()
-        #print "GetTypeString: name %s"%self.name
-        the_bytes = []
-        for thing in self.parsedList:
-            if type(thing) == int:  # if it's a byte, just put it back in
-                the_bytes.append(thing)
-            elif len(thing) == 1:
-                if list(thing.keys())[0] == "local_type":
-                    the_bytes.append(ord("="))  # a type starts with =
-                #print type(thing["local_type"]),thing["local_type"]
-                ordinal = ida_typeinf.get_type_ordinal(ti,list(thing.values())[0])  # get the ordinal of the Local Type based on its name
-                if ordinal > 0:
-                    the_bytes = the_bytes + encode_ordinal_to_string(ordinal)
-                else:
-                    raise NameError("Depends local type not in IDB")
-            else:
-                raise NameError("Wrong depend record for type: %s!"%self.name)
-        packed = struct.pack("%dB" % len(the_bytes), *the_bytes)
-        return packed
 
-    def ParseTypeString(self,type_string):
-        if fDebug ==True:
-            pydevd_pycharm.settrace('127.0.0.1', port=31337, stdoutToServer=True, stderrToServer=True, suspend=False)
-        tp = TinfoReader(type_string)
-        ti = idaapi.get_idati()
-        # print idc_print_type(type_, fields, "fun_name", 0)
-        # print type_.encode("string_escape")
-        output = []
-        """
-        Attempt to copy the tinfo from a location, replacing any Local Types with our own representation of them.
-        Pass all other bytes through as-is.
-        """
-        while tp.keep_going():
-            a_byte = tp.read_byte()
-            unwritten_bytes = [a_byte]
-            if a_byte == ord("=") and tp.pos < len(tp.tp):  # a type begins
-                ordinal_length = tp.read_byte()
-                if tp.pos < len(tp.tp) and len(tp.tp) - (tp.pos + ordinal_length - 1) >= 0:
-                    number_marker = tp.read_byte()
-                    if number_marker == ord("#"):  # this is a Local Type referred to by its ordinal
-                        ordinal = decode_ordinal_string(struct.pack("B",ordinal_length) + b"#" + tp.read_string(ordinal_length-2))
-                        t = idc.get_numbered_type_name(ordinal)
-                        output.append({"local_type": t})
-                        if t not in self.depends:
-                            self.depends.append(t)
-                            self.depends_ordinals.append(ordinal)
-                        continue
-                    else:
-                        unwritten_bytes.append(ordinal_length)
-                        unwritten_bytes.append(number_marker)
-                else:
-                    unwritten_bytes.append(ordinal_length)
-            elif a_byte == ord("#") and ((len(output) >= 4 and output[-4:-1] == [0x0A,0x0D,0x01]) or (len(output) >= 3 and  output[-3:-1] == [0x0D,0x01])):
-                ordinal_length = output[-1]
-                output.pop(-1)
-                ordinal = decode_ordinal_string(struct.pack("B", ordinal_length) + b"#" + tp.read_string(ordinal_length - 2))
-                t = idc.get_numbered_type_name(ordinal)
-                output.append({"rare_local_type": t})
-                if t not in self.depends:
-                    self.depends.append(t)
-                    self.depends_ordinals.append(ordinal)
-                continue
-            
-            output += unwritten_bytes  # put all the bytes we didn't consume into the output as-is
+        return self.TypeString
 
-        return output
+
+    def ParseTypeString(self, type_string):
+        tif = ida_typeinf.tinfo_t()
+        tif.deserialize(ida_typeinf.get_idati(), type_string)
+        ida_typeinf.replace_ordinal_typerefs(ida_typeinf.get_idati(), tif)
+        self.depends = get_type_dependencies(self.name, tif)
+        self.TypeString = tif.serialize()[0]
+        return []
 
     def to_dict(self):
         ser_dic = collections.OrderedDict()

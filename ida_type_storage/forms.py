@@ -1054,27 +1054,3 @@ class ConnectToSQLBase(ida_kernwin.Form):
             return self.iBaseFile.value
         return None
 
-
-
-class ConnectToBase(ida_kernwin.Form):
-    def __init__(self,addr):
-        self.storage = None
-        self.iServerIP = None
-        self.iPort = None
-
-        Form.__init__(self,r"""
-        Choose server with storage
-
-        <#Hint1#Server IP:{iServerIP}> : <#Hint1#Server port:{iPort}>
-        """, {
-            'iServerIP':Form.StringInput(value = "127.0.0.1" if addr is None else addr[0]),
-            'iPort':Form.NumericInput(Form.FT_DEC,27017 if addr is None else addr[1]),
-        })
-
-    def Go(self):
-        self.Compile()
-        ok = self.Execute()
-        # print ("ConnectToBase: Go: Ok = %d; ServerIP = %s; Port = %d"%(ok,self.iServerIP.value,self.iPort.value))
-        if ok == 1:
-            return self.iServerIP.value, self.iPort.value
-        return None
