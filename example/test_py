@@ -1,1 +1,0 @@
-f = open('C:\\Python27\\Lib\\site-packages\\PySide\\pyside-python2.7.dll', 'w')
