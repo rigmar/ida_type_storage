@@ -28,7 +28,7 @@ from ida_type_storage.utils import get_type_dependencies
 import sqlite3
 
 
-fDebug = True
+fDebug = False
 if fDebug:
     import pydevd_pycharm
 
@@ -694,8 +694,8 @@ class IdaTypeStorage(object):
             if (type(name) == str or type(name) == str) and name in self.LocalTypeMap:
                 type_list.append(self.LocalTypeMap[name])
             else:
-                raise NameError("getLocalTypesFromMap: missing type %s"%name)
-
+                # raise NameError("getLocalTypesFromMap: missing type %s"%name)
+                print("getLocalTypesFromMap: missing type %s"%name)
         return type_list
 
     def resolveDependenciesForExport(self,startList):
