@@ -28,7 +28,7 @@ from ida_type_storage.utils import get_type_dependencies
 import sqlite3
 
 
-fDebug = False
+fDebug = True
 if fDebug:
     import pydevd_pycharm
 
@@ -1284,7 +1284,7 @@ class LocalType(object):
         return self.flags&8 == 8
 
     def isEqual(self,t):
-        if self.parsedList == t.parsedList \
+        if self.TypeString == t.TypeString \
                 and self.TypeFields == t.TypeFields \
                 and self.name == t.name:
             return True
