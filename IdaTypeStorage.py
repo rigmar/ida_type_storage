@@ -28,7 +28,7 @@ from ida_type_storage.utils import get_type_dependencies
 import sqlite3
 
 
-fDebug = True
+fDebug = False
 if fDebug:
     import pydevd_pycharm
 
