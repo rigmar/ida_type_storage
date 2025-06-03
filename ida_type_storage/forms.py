@@ -144,10 +144,8 @@ class MergedResult(object):
                     self.mergedText[lineNum] = (lineNum, line, lnType)
         return self.mergedText
 
-try:
-    UNICODE_EXISTS = bool(type(unicode))
-except NameError:
-    unicode = lambda s: str(s)
+
+unicode = lambda s: str(s)
 
 
 from PyQt5 import QtGui, QtCore, QtWidgets
@@ -407,96 +405,95 @@ class LNTextEdit(QtWidgets.QFrame):
 
 
 class DublicateResolverUI(QDialog):
-    def __init__(self,leftText = "", rightText = "",fToStorage = True):
-        flags = Qt.WindowFlags(Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint | Qt.WindowMaximizeButtonHint)
+    def __init__(self, leftText="", rightText="", fToStorage=True):
+        flags = QtCore.Qt.WindowFlags(QtCore.Qt.WindowMinimizeButtonHint | QtCore.Qt.WindowCloseButtonHint | QtCore.Qt.WindowMaximizeButtonHint)
         super(DublicateResolverUI, self).__init__(flags=flags)
         self.textEdits = []
-        self.sel = 1
+        self.sel = -1
         self.selText = ""
         self.fToStorage = fToStorage
         self.leftText = leftText.splitlines(True)
         self.rightText = rightText.splitlines(True)
-        self.MR = MergedResult(self.GetDiff(self.leftText,self.rightText))
-
+        self.MR = MergedResult(self.GetDiff(self.leftText, self.rightText))
+        
         self.initUI()
-
-
+    
     def initUI(self):
-        qlLeft = QLabel('Existing type in the repository' if self.fToStorage else "Existing local type")
-        qlRight = QLabel('New type from the repository' if not self.fToStorage else "New local type")
-        qlMerged = QLabel('Merged type')
-
+        qlLeft = QtWidgets.QLabel('Existing type in the repository' if self.fToStorage else "Existing local type")
+        qlRight = QtWidgets.QLabel('New type from the repository' if not self.fToStorage else "New local type")
+        qlMerged = QtWidgets.QLabel('Merged type')
+        
         self.textEdit1 = LNTextEdit()
         self.textEdit1.edit.cursorPositionChanged.connect(self.highlight)
         self.textEdit2 = LNTextEdit()
         self.textEdit2.edit.cursorPositionChanged.connect(self.highlight)
         self.textEdit3 = LNTextEdit()
         self.textEdit3.edit.cursorPositionChanged.connect(self.highlight)
-        self.textEdits = [self.textEdit1.edit,self.textEdit2.edit,self.textEdit3.edit]
+        self.textEdits = [self.textEdit1.edit, self.textEdit2.edit, self.textEdit3.edit]
         # textEdit1 = QTextEdit()
         # textEdit2 = QTextEdit()
         # textEdit3 = QTextEdit()
-
-        #hi = PythonHighlighter(textEdit1)
-        #print hi.currentBlock().text()
-
-        #self.textEdit1.setText("AAAAAAAAAAAABBBBBBBBB\nCCCCCCCCCDDDDDDDDDD\nAAAAAAAAAAAABBBBBBBBB\nAAAAAAAAAAAABBBBBBBBB\nAAAAAAAAAAAABBBBBBBBB\nAAAAAAAAAAAABBBBBBBBB\nAAAAAAAAAAAABBBBBBBBB")
+        
+        # hi = PythonHighlighter(textEdit1)
+        # print hi.currentBlock().text()
+        
+        # self.textEdit1.setText("AAAAAAAAAAAABBBBBBBBB\nCCCCCCCCCDDDDDDDDDD\nAAAAAAAAAAAABBBBBBBBB\nAAAAAAAAAAAABBBBBBBBB\nAAAAAAAAAAAABBBBBBBBB\nAAAAAAAAAAAABBBBBBBBB\nAAAAAAAAAAAABBBBBBBBB")
         # self.textEdit1.edit.appendPlainText("DDDDDDDDD")
         # self.textEdit1.edit.appendPlainText("DDDDDDDDD")
-        #self.textEdit1.setReadOnly(True)
-        #print hi.currentBlock().text()
-
-        grid = QGridLayout()
+        # self.textEdit1.setReadOnly(True)
+        # print hi.currentBlock().text()
+        
+        grid = QtWidgets.QGridLayout()
         grid.setSpacing(10)
-
+        
         grid.addWidget(qlLeft, 0, 1)
         grid.addWidget(self.textEdit1, 1, 1)
-
+        
         grid.addWidget(qlMerged, 0, 3)
         grid.addWidget(self.textEdit2, 1, 3)
-
+        
         grid.addWidget(qlRight, 0, 5)
         grid.addWidget(self.textEdit3, 1, 5)
-
-        btLeftAll = QPushButton("Use left")
-        grid.addWidget(btLeftAll,2,1)
-        btLeft = QPushButton(">")
-        grid.addWidget(btLeft,1,2)
-
+        
+        btLeftAll = QtWidgets.QPushButton("Use left")
+        grid.addWidget(btLeftAll, 2, 1)
+        btLeft = QtWidgets.QPushButton(">")
+        grid.addWidget(btLeft, 1, 2)
+        
         btLeft.clicked.connect(self.Left)
         btLeftAll.clicked.connect(self.LeftAll)
-
-        btRightAll = QPushButton("Use right")
+        
+        btRightAll = QtWidgets.QPushButton("Use right")
         grid.addWidget(btRightAll, 2, 5)
-        btRight = QPushButton("<")
+        btRight = QtWidgets.QPushButton("<")
         grid.addWidget(btRight, 1, 4)
-
+        
         btRight.clicked.connect(self.Right)
         btRightAll.clicked.connect(self.RightAll)
-
-        btUseMerged = QPushButton("Use merged")
-        grid.addWidget(btUseMerged,2,3)
-
+        
+        btUseMerged = QtWidgets.QPushButton("Use merged")
+        grid.addWidget(btUseMerged, 2, 3)
+        
         btUseMerged.clicked.connect(self.UseMerged)
-
+        
         self.setLayout(grid)
         # self.resize(self.sizeHint())r
-        QP = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        QP = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.setSizePolicy(QP)
         # print self.size()
-        mainGeo = QCoreApplication.instance().desktop().screenGeometry()
-        for w in QCoreApplication.instance().allWidgets():
-            if type(w) == QMainWindow:
+        mainGeo = QtCore.QCoreApplication.instance().desktop().screenGeometry()
+        for w in QtCore.QCoreApplication.instance().allWidgets():
+            if type(w) == QtWidgets.QMainWindow:
                 mainGeo = w.geometry()
                 break
-        #mainGeo.setHeight(mainGeo.height() - 300)
-        #mainGeo.setWidth(mainGeo.width() - 300)
-        #print mainGeo
-
-        #print QCoreApplication.instance().desktop().screenGeometry()
-        self.setMinimumSize(mainGeo.width()//4*3,mainGeo.height()//4*3)
-        #print self.size()
-        #self.resize(QSize(rec.width() - 400, rec.height() - 400))
+        # mainGeo.setHeight(mainGeo.height() - 300)
+        # mainGeo.setWidth(mainGeo.width() - 300)
+        # print mainGeo
+        
+        # print QCoreApplication.instance().desktop().screenGeometry()
+        self.setMinimumSize(mainGeo.width() // 4 * 3, mainGeo.height() // 4 * 3)
+        # print self.size()
+        # self.resize(QSize(rec.width() - 400, rec.height() - 400))
         # self.setGeometry(600, 600, 600, 600)
         self.setWindowTitle('Review')
         self.textEdit1.setMergeText(self.MR.leftText, self.MR.diffs)
@@ -504,8 +501,7 @@ class DublicateResolverUI(QDialog):
         self.textEdit2.setMergeText(self.MR.GetMergedText(), self.MR.diffs, None)
         self.textEdit1.setReadOnly(True)
         self.textEdit3.setReadOnly(True)
-
-
+    
     def highlight(self):
         # print (self.sender())
         # if self.sender() == self.textEdit1.edit:
@@ -513,22 +509,22 @@ class DublicateResolverUI(QDialog):
         # print self.toPlainText()
         # print self
         # obj = self if self.sender() is None else self.sender()
-        hi_selection = QTextEdit.ExtraSelection()
-
+        hi_selection = QtWidgets.QTextEdit.ExtraSelection()
+        
         hi_selection.format.setBackground(self.sender().palette().alternateBase())
-        hi_selection.format.setProperty(QTextFormat.FullWidthSelection, QVariant(True))
+        hi_selection.format.setProperty(QtGui.QTextFormat.FullWidthSelection, QtCore.QVariant(True))
         hi_selection.cursor = self.sender().textCursor()
         cursor = hi_selection.cursor
         line_num = cursor.blockNumber()
         hi_selection.cursor.clearSelection()
-
+        
         self.sender().setExtraSelections([hi_selection])
         for edit in self.textEdits:
             if edit.textCursor().blockNumber() != line_num:
-                hi_selection = QTextEdit.ExtraSelection()
-
+                hi_selection = QtWidgets.QTextEdit.ExtraSelection()
+                
                 hi_selection.format.setBackground(edit.palette().alternateBase())
-                hi_selection.format.setProperty(QTextFormat.FullWidthSelection, QVariant(True))
+                hi_selection.format.setProperty(QtGui.QTextFormat.FullWidthSelection, QtCore.QVariant(True))
                 bl = edit.document().findBlockByNumber(line_num)
                 cr = edit.textCursor()
                 cr.setPosition(bl.position())
@@ -537,45 +533,45 @@ class DublicateResolverUI(QDialog):
                 edit.setTextCursor(cr)
                 hi_selection.cursor = edit.textCursor()
                 hi_selection.cursor.clearSelection()
-
+                
                 edit.setExtraSelections([hi_selection])
-
+    
     def Left(self):
         line_num = self.textEdit2.edit.textCursor().blockNumber() + 1
         ct = self.textEdit2.lines[line_num]
         line = self.textEdit1.lines[line_num][1]
         self.textEdit2.lines[line_num] = (ct[0], line, ct[2])
         self.textEdit2.edit.document().clear()
-        self.textEdit2.setMergeText(self.textEdit2.lines,self.textEdit2.diffs,None)
+        self.textEdit2.setMergeText(self.textEdit2.lines, self.textEdit2.diffs, None)
         block = self.textEdit2.edit.document().findBlockByNumber(line_num)
         cr = self.textEdit2.edit.textCursor()
         cr.setPosition(block.position())
         self.textEdit2.edit.setTextCursor(cr)
-
+    
     def Right(self):
         line_num = self.textEdit2.edit.textCursor().blockNumber() + 1
         ct = self.textEdit2.lines[line_num]
         line = self.textEdit3.lines[line_num][1]
         self.textEdit2.lines[line_num] = (ct[0], line, ct[2])
         self.textEdit2.edit.document().clear()
-        self.textEdit2.setMergeText(self.textEdit2.lines,self.textEdit2.diffs,None)
+        self.textEdit2.setMergeText(self.textEdit2.lines, self.textEdit2.diffs, None)
         block = self.textEdit2.edit.document().findBlockByNumber(line_num)
         cr = self.textEdit2.edit.textCursor()
         cr.setPosition(block.position())
         self.textEdit2.edit.setTextCursor(cr)
-
+    
     def LeftAll(self):
         self.sel = 1
-        self.close()
-
+        self.accept()
+    
     def RightAll(self):
         self.sel = 2
-        self.close()
-
+        self.accept()
+    
     def UseMerged(self):
         self.sel = 0
-        self.close()
-
+        self.accept()
+    
     def closeEvent(self, QCloseEvent):
         edit = None
         if self.sel == 0:
@@ -584,15 +580,16 @@ class DublicateResolverUI(QDialog):
             self.selText = self.textEdit1.edit.toPlainText()
         elif self.sel == 2:
             self.selText = self.textEdit3.edit.toPlainText()
-
+    
     @staticmethod
-    def GetDiff(s1,s2):
+    def GetDiff(s1, s2):
         d = Differ()
-
+        
         result = list(d.compare(s1, s2))
         return result
+    
     def Go(self):
-        self.setWindowModality(Qt.ApplicationModal)
+        self.setWindowModality(QtCore.Qt.ApplicationModal)
         # self.setWindowModality(Qt.WindowModal)
         oldTo = idaapi.set_script_timeout(0)
         res = self.exec_()

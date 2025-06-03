@@ -71,85 +71,7 @@ class ActionWrapper(idaapi.action_handler_t):
     def update(self, ctx):
         return idaapi.AST_ENABLE_ALWAYS
 
-############################################################
-# Several type-related functions aren't accessibly via IDAPython
-# so have to do things with ctypes
-idaname = "ida64" if idc.__EA64__ else "ida"
-if sys.platform == "win32":
-    g_dll = ctypes.windll[idaname + ".wll"] if ida_pro.IDA_SDK_VERSION < 700 else ctypes.windll[idaname + ".dll"]
-elif sys.platform == "linux2":
-    g_dll = ctypes.cdll["lib" + idaname + ".so"]
-elif sys.platform == "darwin":
-    g_dll = ctypes.cdll["lib" + idaname + ".dylib"]
-
-
-class til_t(ctypes.Structure):
-    pass
-
-til_t._fields_ = [
-        ("name", ctypes.c_char_p),
-        ("desc", ctypes.c_char_p),
-        ("nbases", ctypes.c_int),
-        ("base", ctypes.POINTER(ctypes.POINTER(til_t)))]
-
 wrapperTypeString = b'\x0d\x01\x01'
-
-############################################################
-# Specifying function types for a few IDA SDK functions to keep the
-# pointer-to-pointer args clear.
-
-c_free_til = g_dll.free_til
-c_free_til.argtypes = [
-    c_void_p
-]
-
-c_new_til = g_dll.new_til
-c_new_til.argtyped = [
-    c_char_p,                           #const char *name
-    c_char_p                            #const char *desc
-]
-c_new_til.restype = c_void_p
-
-if ida_pro.IDA_SDK_VERSION < 700:
-    my_til = ctypes.c_void_p.in_dll(g_dll, 'idati')
-else:
-    c_get_idati = g_dll.get_idati
-    c_get_idati.restype = ctypes.c_longlong
-    my_til = c_get_idati()
-
-c_compact_numbered_types = g_dll.compact_numbered_types
-
-c_compact_numbered_types.argtypes = [
-            ctypes.c_longlong,
-            ctypes.c_int,
-            ctypes.c_int,
-            ctypes.c_int
-        ]
-
-c_get_numbered_type = g_dll.get_numbered_type
-c_get_numbered_type.argtypes = [
-    ctypes.c_void_p,                                    #const til_t *ti,
-    ctypes.c_int,                                       #uint32 ordinal,
-    ctypes.POINTER(ctypes.c_char_p),     #const type_t **type=NULL,
-    ctypes.POINTER(ctypes.c_char_p),     #const p_list **fields=NULL,
-    ctypes.POINTER(ctypes.c_char_p),     #const char **cmt=NULL,
-    ctypes.POINTER(ctypes.c_char_p),     #const p_list **fieldcmts=NULL,
-    ctypes.POINTER(ctypes.c_ulong),                     #sclass_t *sclass=NULL
-]
-
-c_set_numbered_type = g_dll.set_numbered_type
-c_set_numbered_type.argtypes = [
-    ctypes.c_void_p,                                    #til_t *ti,
-    ctypes.c_int,                                       #uint32 ordinal,
-    ctypes.c_int,                                       #int ntf_flags,
-    ctypes.c_char_p,                                    #const char *name,
-    ctypes.c_char_p,     #const type_t *type,
-    ctypes.c_char_p,     #const p_list *fields=NULL,
-    ctypes.c_char_p,     #const char *cmt=NULL,
-    ctypes.c_char_p,     #const p_list *fldcmts=NULL,
-    ctypes.POINTER(ctypes.c_ulong),                     #const sclass_t *sclass=NULL
-]
-
 
 class ui_hooks(ida_kernwin.UI_Hooks):
     
@@ -436,8 +358,6 @@ class IdaTypeStorage(object):
             print("doExportTypes: saveToStorage time elapsed =  %f" % t_delta)
             print ("Exported to storage %d types"%len(sorted_list))
 
-    def doCompactNumberedTypes(self,ctx):
-        c_compact_numbered_types(my_til, 1, 0, 0)
     
     def InitTypeLibsList(self):
         self.list_type_library = []
@@ -462,7 +382,7 @@ class IdaTypeStorage(object):
         self.LocalTypeMap = collections.OrderedDict()
         self.FreeOrdinals = []
         self.OrdinalsMap = collections.OrderedDict()
-        for i in range(1, ida_typeinf.get_ordinal_qty(ida_typeinf.get_idati())):
+        for i in range(1, ida_typeinf.get_ordinal_limit(ida_typeinf.get_idati())):
             name = ida_typeinf.get_numbered_type_name(ida_typeinf.get_idati(),i)
             if name:
                 #todo: doing something with empty and error types
@@ -553,7 +473,6 @@ class IdaTypeStorage(object):
 
 
     def getTypeOrdinal(self,name):
-        my_ti = get_my_ti()
         my_ti = ida_typeinf.get_idati()
         return ida_typeinf.get_type_ordinal(my_ti,name)
 
@@ -813,146 +732,6 @@ class IdaTypeStorage(object):
                 if r is not None:
                     return LocalType(r[0], r[1], r[2])
 
-    def InsertTypeOld(self, type_obj, fReplace=False):
-        my_ti = get_my_ti()
-        my_ti = idaapi.get_idati()
-        # print "InsertType:",type(type_obj.name), type_obj.name
-        # print "InsertType: idx = %d"%self.getTypeOrdinal(type_obj.name.encode("ascii"))
-        # print "InsertType: idx = %d"%self.get_type_ordinal(my_ti,type_obj.name.encode("ascii"))
-        if self.getTypeOrdinal(type_obj.name) != 0:
-            # print "InsertType: getTypeOrdinal"
-            idx = self.getTypeOrdinal(type_obj.name)
-            t = self.ImportLocalType(idx)
-            if (t.TypeFields is None or t.TypeFields == "") and t.is_sue():
-                fReplace = True
-            if t.isEqual(type_obj) or type_obj.TypeString == wrapperTypeString:
-                return 1
-            if not fReplace:
-                type_obj = self.DuplicateResolver(t, type_obj, False)
-        elif len(self.FreeOrdinals) > 0:
-            # print "InsertType: FreeOrdinals.pop"
-            idx = self.FreeOrdinals.pop(0)
-        else:
-            # print "InsertType: alloc_type_ordinals"
-            idx = alloc_type_ordinals(my_ti, 1)
-        # print "InsertType: type_obj.parsedList = ", type_obj.parsedList
-        # print "InsertType: idx = %d"%idx
-        typ_type = ctypes.c_char_p(type_obj.GetTypeString())
-        # if len(type_obj.TypeFields) == 0:
-        #     typ_fields = 0
-        # else:
-        typ_fields = ctypes.c_char_p(type_obj.TypeFields)
-        # if len(type_obj.cmt) == 0:
-        #     typ_cmt = 0
-        # else:
-        typ_cmt = ctypes.c_char_p(type_obj.cmt)
-        # if len(type_obj.fieldcmts) == 0:
-        #     typ_fieldcmts = 0
-        # else:
-        typ_fieldcmts = ctypes.c_char_p(type_obj.fieldcmts)
-        # print type_obj.print_type()
-        if type(type_obj.sclass) == int:
-            type_obj.sclass = ctypes.c_ulong(type_obj.sclass)
-        ret = 1
-        ret = c_set_numbered_type(
-            my_til,
-            idx,
-            0x4,
-            ctypes.c_char_p(type_obj.name),
-            typ_type,
-            typ_fields,
-            typ_cmt,
-            typ_fieldcmts,
-            ctypes.byref(type_obj.sclass)
-        )
-
-        # print "InsertType: ret = %d"%ret
-        if (ida_pro.IDA_SDK_VERSION < 700 and ret != 1) or (ida_pro.IDA_SDK_VERSION >= 700 and ret != 0):
-            print ("bad insert: %s; ret = %d" % (type_obj.name, ret))
-        return ret
-
-    def ImportLocalTypeOld(self, idx):
-        global my_til
-        name = idc.get_numbered_type_name(idx)
-        if name != None and name not in self.LocalTypeMap:
-            typ_type = ctypes.c_char_p()
-            typ_fields = ctypes.c_char_p()
-            typ_cmt = ctypes.c_char_p()
-            typ_fieldcmts = ctypes.c_char_p()
-            typ_sclass = ctypes.c_ulong()
-            ret = c_get_numbered_type(
-                my_til,
-                idx,
-                ctypes.byref(typ_type),
-                ctypes.byref(typ_fields),
-                ctypes.byref(typ_cmt),
-                ctypes.byref(typ_fieldcmts),
-                ctypes.byref(typ_sclass)
-            )
-            typ_type = typ_type.value
-            typ_fields = typ_fields.value
-            typ_cmt = typ_cmt.value
-            typ_fieldcmts = typ_fieldcmts.value
-            return LocalType(name, typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass.value, isStandard=self.isStanadardType(name))
-        elif name != None:
-            return self.LocalTypeMap[name]
-        return None
-
-    def InitialiseOld(self):
-        global my_til
-        my_ti = idaapi.get_idati()
-        self.InitTypeLibsList()
-        # compact_numbered_types(my_til)
-        self.LocalTypeMap = collections.OrderedDict()
-        self.FreeOrdinals = []
-        self.OrdinalsMap = collections.OrderedDict()
-        for i in range(1, idc.get_ordinal_qty()):
-            # for i in range(12114, 12115):
-            name = idc.get_numbered_type_name(i)
-            # print "Ordinal = %d; Type name = %s"%(i,name)
-    
-            if name != None:
-                tif = tinfo_t()
-                rc = tif.get_numbered_type(my_ti, i)
-                if tif.get_size() != BADADDR:
-                    c_compact_numbered_types(my_til, 1, 0, 0)
-                    typ_type = ctypes.c_char_p()
-                    typ_fields = ctypes.c_char_p()
-                    typ_cmt = ctypes.c_char_p()
-                    typ_fieldcmts = ctypes.c_char_p()
-                    typ_sclass = ctypes.c_ulong()
-                    ret = c_get_numbered_type(
-                        my_til,
-                        i,
-                        ctypes.byref(typ_type),
-                        ctypes.byref(typ_fields),
-                        ctypes.byref(typ_cmt),
-                        ctypes.byref(typ_fieldcmts),
-                        ctypes.byref(typ_sclass)
-                    )
-                    typ_type = typ_type.value
-                    if typ_type == None:
-                        typ_type = ""
-                    # print typ_type
-                    typ_fields = typ_fields.value
-                    if typ_fields == None:
-                        typ_fields = ""
-                    typ_cmt = typ_cmt.value
-                    if typ_cmt == None:
-                        typ_cmt = ""
-                    typ_fieldcmts = typ_fieldcmts.value
-                    if typ_fieldcmts == None:
-                        typ_fieldcmts = ""
-                    typ_sclass = typ_sclass.value
-                    t = LocalType(name, typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass, isStandard=self.isStanadardType(name))
-                    self.LocalTypeMap[name] = t
-                    # self.OrdinalsMap[name]
-                    continue
-            # self.FreeOrdinals.append(i)
-        # print len(self.LocalTypeMap)
-        # f = open("F:\IdaTextTypesParser\cache.dat","wb")
-        # pickle.dump(self.LocalTypeMap,f)
-        # f.close()
 
 
 class Storage_sqlite(object):
